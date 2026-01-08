@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # --- THE DATA STREAM (Redpanda) ---
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda-grid
+    command:
+      - redpanda start
+      - --smp 1
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:29092,external://127.0.0.1:9092
+      - --set redpanda.enable_admin_api=true
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    ports:
+      - "9092:9092"   # Matches our Python Producer/Consumer scripts
+      - "9644:9644"   # Admin API for the Console
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # --- THE VISUALIZER (Redpanda Console) ---
+  console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: redpanda-console
+    environment:
+      - KAFKA_BROKERS=redpanda:29092
+      - REDPANDA_ADMINAPI_ENABLED=true
+      - REDPANDA_ADMINAPI_URLS=http://redpanda:9644
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # --- THE BRAIN STORAGE (InfluxDB) ---
+  influxdb:
+    image: influxdb:2
+    container_name: influxdb-grid
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=atlavt25
+      - DOCKER_INFLUXDB_INIT_PASSWORD=sm_ramp25 
+      - DOCKER_INFLUXDB_INIT_ORG=myorg
+      - DOCKER_INFLUXDB_INIT_BUCKET=energy
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=smg!indb25 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- THE COMMAND CENTER (Grafana) ---
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-grid
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=smg!rmgrf25
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+volumes:
+  redpanda_data:
+  influxdb_data:
+  grafana_data:
