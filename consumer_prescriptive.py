@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime
 from confluent_kafka import Consumer
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -19,7 +20,7 @@ INFLUX_TOKEN = "smg!indb25"
 INFLUX_ORG = "myorg"
 INFLUX_BUCKET = "energy"
 
-# Ramp Rate Thresholds (MW/min)
+# Ramp Rate Thresholds (kW/min)
 # If power drops faster than this, we trigger an alarm.
 CRITICAL_DROP_THRESHOLD = -50  
 WARNING_DROP_THRESHOLD = -20
@@ -48,7 +49,7 @@ def start_consumer():
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
-    print(f"🎧 Listening to {TOPIC_NAME} and writing to InfluxDB...")
+    print(f"Listening to {TOPIC_NAME} and writing to InfluxDB...")
 
     # STATEFUL VARIABLE
     # We need to remember the previous reading to calculate the rate of change.
@@ -57,7 +58,7 @@ def start_consumer():
 
     try:
         while True:
-            msg = consumer.poll(1.0) # Wait 1 second for a message
+            msg = consumer.poll(30.0) # Wait 30 seconds for a message
 
             if msg is None:
                 continue
@@ -70,14 +71,33 @@ def start_consumer():
             
             # Extract key metrics (Assuming your CSV has 'meter_reading' and timestamp)
             # Adjust 'meter_reading' to match your actual CSV column name!
-            current_power = float(data.get('Net Load', 0))
+            load = float(data.get('electricity_load', 0))
+            solar = float(data.get('solar_output', 0))
+            wind = float(data.get('wind_output', 0))
+            
+            # --- CALCULATE RENEWABLE ENERGY ---
+            total_renewables = solar + wind # Total Renewable in kW
+            
+            # --- CALCULATE NET LOAD ---
+            current_power = load - total_renewables  # Net Load in kW            
+            
+            # Parse the real-time timestamp 
+            # ISO format: "2026-01-08T23:00:00.000" 
+            current_time = datetime.fromisoformat(data['timestamp'])
             
             # --- CALCULATE RAMP RATE ---
             ramp_rate = 0.0
-            if previous_power is not None:
+            if previous_power is not None and previous_time is not None:
+                # Time difference in seconds 
+                time_diff = (current_time - previous_time).total_seconds() 
+
                 # Simple difference calculation (Current - Previous)
-                # In a real scenario, you'd calculate this over a time window (dMW/dt)
-                ramp_rate = current_power - previous_power
+                power_diff = current_power - previous_power
+
+                if time_diff > 0:
+                    ramp_rate = (power_diff / time_diff) * 60  # Convert to kW/min
+                else: 
+                    ramp_rate = 0.0 
 
             # --- DECISION ENGINE ---
             severity, action = prescribe_action(ramp_rate)
@@ -85,7 +105,11 @@ def start_consumer():
             # --- WRITE TO INFLUXDB ---
             # We create a "Point" that contains the Raw Data AND the Decision
             point = Point("grid_status") \
-                .field("power_mw", current_power) \
+                .field("electricity_load", load) \
+                .field("solar_output", solar) \
+                .field("wind_output", wind) \
+                .field("renewable_energy", total_renewables) \
+                .field("net_load", current_power) \
                 .field("ramp_rate", ramp_rate) \
                 .tag("severity", severity) \
                 .tag("recommended_action", action)
@@ -93,12 +117,13 @@ def start_consumer():
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
 
             if severity != "NORMAL":
-                print(f"⚠️ {severity}: Ramp Rate {ramp_rate:.2f} | Action: {action}")
+                print(f"{severity}: Ramp Rate {ramp_rate:.2f} | Action: {action}")
             else:
-                print(f"✅ Normal: Power {current_power} | Rate {ramp_rate}")
+                print(f"Normal: Power {current_power} | Rate {ramp_rate}")
 
             # Update State
             previous_power = current_power
+            previous_time = current_time
 
     except KeyboardInterrupt:
         print("Stopping consumer...")
