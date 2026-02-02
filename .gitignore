@@ -12,6 +12,8 @@ ENV/
 *.csv
 *.ubj
 *.json
+*.txt
+*.log
 !docker-compose.yml
 
 # IDE
