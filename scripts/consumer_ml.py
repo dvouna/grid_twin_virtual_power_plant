@@ -7,10 +7,10 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 # Import the feature store class from its own file
-from GridFeatureStore import GridFeatureStore
+from src.vpp.ml.feature_store import GridFeatureStore
 
 # --- 1. CONFIGURATION ---
-MODEL_PATH = "xgboost_smart_ml.ubj"
+MODEL_PATH = "../../../models/xgboost_smart_ml.ubj"
 TOPIC_NAME = 'grid-sensor-stream'
 
 KAFKA_CONF = {

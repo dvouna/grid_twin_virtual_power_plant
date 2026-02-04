@@ -7,7 +7,7 @@ from confluent_kafka import Producer
 # --- CONFIGURATION ---
 TOPIC_NAME = "grid-sensor-stream"
 KAFKA_CONF = {'bootstrap.servers': 'localhost:9092'} 
-CSV_FILE_PATH = "smart_grid_data.csv"
+CSV_FILE_PATH = "../../../data/smart_grid_data.csv"
 
 # --- KAFKA HELPERS ---
 def delivery_report(err, msg):
