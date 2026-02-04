@@ -1,26 +1,39 @@
+import os
 import xgboost as xgb
 import pandas as pd
 from fastmcp import FastMCP
-from influxdb_client import InfluxDBClient
-from GridFeatureStore import GridFeatureStore
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
+
+# Robust path handling
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+MODEL_DIR = os.path.join(BASE_DIR, "models")
+
+# Import GridFeatureStore from its new home
+try:
+    from vpp.core.GridFeatureStore import GridFeatureStore
+except ImportError:
+    # If not running as package, try relative or sys.path
+    import sys
+    sys.path.append(os.path.join(BASE_DIR, "src"))
+    from vpp.core.GridFeatureStore import GridFeatureStore
 
 # ---- INITIALIZATION ----
 mcp = FastMCP("GridIntelligence")
 
 # Loading existing model
-MODEL_PATH = "xgboost_smart_ml.ubj"
+MODEL_PATH = os.path.join(MODEL_DIR, "xgboost_smart_ml.ubj")
 model = xgb.Booster()
 model.load_model(MODEL_PATH)
 
 # Load expected feature columns from model training
-# This ensures our features match exactly what the model expects
+FEATURE_FILE = os.path.join(MODEL_DIR, "model_features.txt")
 try:
-    with open("model_features.txt", "r") as f:
+    with open(FEATURE_FILE, "r") as f:
         expected_features = [line.strip() for line in f if line.strip()]
 except FileNotFoundError:
-    # If file doesn't exist, model will use whatever features we provide
     expected_features = None
-    print("Warning: model_features.txt not found. Feature alignment may be inconsistent.")
+    print(f"Warning: {FEATURE_FILE} not found. Feature alignment may be inconsistent.")
 
 # Initialize GridFeatureStore for feature engineering
 feature_store = GridFeatureStore(window_size=49, expected_columns=expected_features)
@@ -69,29 +82,6 @@ def add_grid_observation(
 ) -> str:
     """
     Adds a new grid observation to the feature store.
-    This accumulates data needed for lag and rolling window features.
-    Call this repeatedly with real-time data before making predictions.
-    
-    Args:
-        timestamp: ISO format timestamp (e.g., '2026-02-04T08:00:00')
-        hist_load: Historical load (kW)
-        elec_load: Electrical load (kW)
-        solar_kw: Solar generation (kW)
-        wind_kw: Wind generation (kW)
-        rf_error: Random forest error
-        c_flag: Control flag
-        c_r_s: Control reserve state
-        b_soc: Battery state of charge (%)
-        temp: Temperature (°C)
-        humidity: Humidity (%)
-        s_irr: Solar irradiance
-        cloud: Cloud cover (%)
-        w_speed: Wind speed (m/s)
-        hpa: Atmospheric pressure (hPa)
-        net_load: Net load (kW)
-    
-    Returns:
-        Status message indicating success and feature store readiness
     """
     payload = {
         'Timestamp': timestamp,
@@ -121,69 +111,45 @@ def add_grid_observation(
     if is_ready:
         status += "Feature store is PRIMED and ready for predictions."
     else:
-        status += f"Need {49 - buffer_size} more observations to prime the feature store."
+        status += f"Need {49 - buffer_size} more observations."
     
     return status
 
 
 @mcp.tool()
-def predict_grid_ramp() -> str:
+def predict_30min_Change() -> str:
     """
     Predicts the next grid ramp using the full feature engineering pipeline.
-    Requires the feature store to be primed with at least 49 observations.
-    Uses all 160 features (lags, rolling windows, interactions, cyclical features).
-    
-    Returns:
-        Prediction result with ramp magnitude and direction, or error if not ready
     """
     if not feature_store.is_primed:
         buffer_size = len(feature_store.buffer)
-        return f"❌ Feature store not ready. Current buffer: {buffer_size}/49. Add {49 - buffer_size} more observations."
+        return f"Feature store not ready. Current buffer: {buffer_size}/49. Add {49 - buffer_size} more observations."
     
-    # Get the engineered feature vector
     features = feature_store.get_inference_vector()
-    
     if features is None:
-        return "❌ Failed to generate feature vector. Check feature store state."
+        return "Failed to generate feature vector. Check feature store state."
     
     # Make prediction
     dmatrix = xgb.DMatrix(features)
     prediction = model.predict(dmatrix)[0]
     
-    # Interpret results
     direction = "UP" if prediction > 0 else "DOWN"
     magnitude = abs(prediction)
     
-    # Add context and recommendations
-    result = f"🔮 Predicted Ramp: {prediction:.2f} kW {direction}\n\n"
+    result = f"Predicted Ramp: {prediction:.2f} kW {direction}\n\n"
     
-    if magnitude > 10000:  # 10 MW threshold
+    if magnitude > 10000:
         result += "⚠️ CRITICAL: Large ramp predicted! Recommend immediate battery action.\n"
-        if prediction > 0:
-            result += "   → Prepare battery discharge to meet rising demand."
-        else:
-            result += "   → Prepare battery charging with excess generation."
-    elif magnitude > 5000:  # 5 MW threshold
+    elif magnitude > 5000:
         result += "⚡ MODERATE: Significant ramp detected. Monitor closely.\n"
-        if prediction > 0:
-            result += "   → Consider battery support for load increase."
-        else:
-            result += "   → Potential arbitrage opportunity on load decrease."
     else:
-        result += "✓ STABLE: Minor fluctuation predicted. No immediate action required."
+        result += "✓ STABLE: Minor fluctuation predicted."
     
     return result
 
-
 @mcp.tool()
 def get_feature_store_status() -> str:
-    """
-    Returns the current status of the feature store buffer.
-    Useful for debugging and monitoring data accumulation.
-    
-    Returns:
-        Detailed status of the feature store including buffer size and readiness
-    """
+    """Returns the current status of the feature store buffer."""
     buffer_size = len(feature_store.buffer)
     is_ready = feature_store.is_primed
     
@@ -191,20 +157,45 @@ def get_feature_store_status() -> str:
     status += f"  Buffer Size: {buffer_size}/49\n"
     status += f"  Is Primed: {'✓ YES' if is_ready else '✗ NO'}\n"
     
-    if not is_ready:
-        status += f"  Observations Needed: {49 - buffer_size}\n"
-    else:
-        status += f"  Expected Features: {len(feature_store.expected_columns) if feature_store.expected_columns else 'Unknown'}\n"
-        
-        # Show last observation if available
-        if feature_store.buffer:
-            last_obs = feature_store.buffer[-1]
-            status += f"\nLast Observation:\n"
-            status += f"  Timestamp: {last_obs.get('Timestamp', 'N/A')}\n"
-            status += f"  Net Load: {last_obs.get('Net_Load', 'N/A')} kW\n"
-            status += f"  Battery SOC: {last_obs.get('B_SOC', 'N/A')}%\n"
+    if is_ready and feature_store.buffer:
+        last_obs = feature_store.buffer[-1]
+        status += f"\nLast Observation:\n"
+        status += f"  Timestamp: {last_obs.get('Timestamp', 'N/A')}\n"
+        status += f"  Net Load: {last_obs.get('Net_Load', 'N/A')} kW\n"
     
     return status
+
+@mcp.tool()
+def dispatch_asset(asset_type: str, power_kw: float) -> str:
+    """
+    Simulates dispatching a grid asset (e.g., Gas Peaker, Battery).
+    """
+    client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=ORG)
+    write_api = client.write_api(write_options=SYNCHRONOUS)
+    
+    point = Point("simulated_response") \
+        .field("response_kw", float(power_kw)) \
+        .tag("asset_type", asset_type) \
+        .tag("action_source", "mcp_agent")
+    
+    write_api.write(bucket=BUCKET, org=ORG, record=point)
+    return f"🚀 Dispatched {asset_type} with {power_kw} kW. Recorded in InfluxDB."
+
+@mcp.tool()
+def execute_trade(action: str, volume_kw: float) -> str:
+    """
+    Executes a virtual arbitrage trade (BUY/SELL) for the virtual power plant.
+    """
+    client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=ORG)
+    write_api = client.write_api(write_options=SYNCHRONOUS)
+    
+    point = Point("trading_log") \
+        .field("trade_volume", float(volume_kw)) \
+        .tag("trade_action", action) \
+        .tag("trade_source", "mcp_agent")
+    
+    write_api.write(bucket=BUCKET, org=ORG, record=point)
+    return f"📉 Executed {action} trade for {volume_kw} kW. Recorded in trading log."
 
 
 # --- PROMPTS ---

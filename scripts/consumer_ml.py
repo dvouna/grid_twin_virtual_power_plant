@@ -1,4 +1,11 @@
 import json
+import sys
+import os
+
+# Add the src directory to sys.path to allow importing vpp
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(BASE_DIR, 'src'))
+
 import pandas as pd
 import xgboost as xgb
 from datetime import datetime
@@ -6,11 +13,11 @@ from confluent_kafka import Consumer
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-# Import the feature store class from its own file
-from src.vpp.ml.feature_store import GridFeatureStore
+# Import the feature store class using its package name
+from vpp.core.GridFeatureStore import GridFeatureStore
 
 # --- 1. CONFIGURATION ---
-MODEL_PATH = "../../../models/xgboost_smart_ml.ubj"
+MODEL_PATH = "./models/xgboost_smart_ml.ubj"
 TOPIC_NAME = 'grid-sensor-stream'
 
 KAFKA_CONF = {
@@ -31,7 +38,7 @@ CRITICAL_DROP_THRESHOLD = -50
 WARNING_DROP_THRESHOLD = -20
 
 # --- 2. LOAD MODEL ---
-model = xgb.XGBRegressor()
+model = xgb.Booster()
 model.load_model(MODEL_PATH)
 
 # --- 1. PRESCRIPTIVE LOGIC ---
@@ -112,7 +119,7 @@ def run_ml_consumer():
             net_load = float(payload.get('Net_Load', 0)) 
             ren_load = solar + wind  # Total Renewable in kW
             
-            # B. Get Inference Vector
+            # B. Get Inference Vector (Pandas DataFrame)
             inference_df = feature_store.get_inference_vector()
             
             # C. Check if we have enough data (buffer is primed)
@@ -120,8 +127,9 @@ def run_ml_consumer():
                 print(f"⌛ Priming buffer... ({len(feature_store.buffer)}/{feature_store.buffer.maxlen})")
                 continue
             
-            # D. Inference
-            prediction_30min_change = model.predict(inference_df)[0]
+            # D. Inference using DMatrix for feature name robustness
+            dmatrix = xgb.DMatrix(inference_df)
+            prediction_30min_change = model.predict(dmatrix)[0]
             
             # --- DECISION ENGINE ---
             severity, action = prescribe_action(prediction_30min_change)
@@ -133,7 +141,7 @@ def run_ml_consumer():
                 .field("Electricity_Load_kW", elec_load) \
                 .field("Renewable_Load_kW", ren_load) \
                 .field("Net_Load_kW", net_load) \
-                .field("Predicted_30min_Change", prediction_30min_change) \
+                .field("Predicted_30min_Change", float(prediction_30min_change)) \
                 .tag("severity", severity) \
                 .tag("recommended_action", action)
             

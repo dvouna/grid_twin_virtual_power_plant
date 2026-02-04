@@ -5,7 +5,7 @@ This directly tests the GridFeatureStore functionality
 
 import sys
 from datetime import datetime, timedelta
-from GridFeatureStore import GridFeatureStore
+from vpp.core.GridFeatureStore import GridFeatureStore
 import xgboost as xgb
 import pandas as pd
 
