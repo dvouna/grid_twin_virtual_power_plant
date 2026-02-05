@@ -5,21 +5,21 @@
 [![Codecov](https://img.shields.io/codecov/c/github/dvouna/grid_twin_virtual_power_plant-)](https://codecov.io/gh/dvouna/grid_twin_virtual_power_plant-)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
 [![Docker Ready](https://img.shields.io/badge/docker-ready-0db7ed)](https://www.docker.com/)
-[![Status](https://img.shields.io/badge/status-active-success)](#)
-[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-orange)](#)
+[![Status](https://img.shields.io/badge/status-active-success)](#b-system-architecture)
+[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-orange)](#e-getting-started)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
 
 SmartGrid‑AI is an intelligent virtual power plant (VPP) platform that transforms raw grid telemetry into real‑time operational decisions. It blends streaming ingestion, stateful feature engineering, predictive modeling, and autonomous control agents to stabilize the grid and optimize economic outcomes.
 
 ## 🌐 A. Core Capabilities
 
-#### 1. Real-Time Grid Intelligence
+### 1. Real-Time Grid Intelligence
 
 - Continuous ingestion of Net Load, Solar Generation, and related telemetry.
 - Stateful feature engineering with temporal lags, rolling statistics, and interaction terms.
 - Predictive modeling to detect instability, ramps, and arbitrage opportunities.
 
-#### 2. MCP-Driven Decision Engine ("The Brain")
+### 2. MCP-Driven Decision Engine ("The Brain")
 
 Hosted on an MCP server, the SmartGrid‑AI agent can:
 
@@ -28,7 +28,7 @@ Hosted on an MCP server, the SmartGrid‑AI agent can:
 - Execute arbitrage strategies (buy low, sell high).
 - Reason over grid state and call tools autonomously.
 
-#### 3. Autonomous Control Agents
+### 3. Autonomous Control Agents
 
 - **Grid Response Actor**: Detects instability events and dispatches assets to maintain frequency and avoid penalties.
 - **Arbitrage Trader**: Executes charge/discharge cycles based on predicted price differentials.
@@ -37,8 +37,8 @@ Hosted on an MCP server, the SmartGrid‑AI agent can:
 
 ### 1. High-Level Flow
 
-```
-[Grid Data] 
+```text
+Module Purpose 
    → [InfluxDB] 
    → [Feature Store] 
    → [MCP Agent] 
@@ -149,7 +149,7 @@ pip install -r requirements.txt
 
 ### 3. Project Structure
 
-```
+```text
 src/vpp/
 ├── intelligence/    # Data streaming and ML pipeline
 │   ├── producer.py

@@ -1,7 +1,5 @@
 import json
-import pandas as pd
 import xgboost as xgb
-from datetime import datetime
 from confluent_kafka import Consumer
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -95,7 +93,8 @@ def run_ml_consumer():
     try:
         while True:
             msg = consumer.poll(10.0) # Wait 5 seconds for a message 
-            if msg is None: continue
+            if msg is None:
+                continue
             if msg.error():
                 print(f"Consumer error: {msg.error()}")
                 continue
