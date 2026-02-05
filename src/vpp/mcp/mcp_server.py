@@ -1,35 +1,47 @@
+import os
 import xgboost as xgb
 import pandas as pd
 from fastmcp import FastMCP
 from influxdb_client import InfluxDBClient
-from GridFeatureStore import GridFeatureStore
+from vpp.core.GridFeatureStore import GridFeatureStore
 
 # ---- INITIALIZATION ----
 mcp = FastMCP("GridIntelligence")
 
+# Environment Variables for Cloud Run 
+# These allow us to inject production credentials without changing code
+INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "smg!indb25")
+ORG = os.getenv("INFLUX_ORG", "myorg")
+BUCKET = os.getenv("INFLUX_BUCKET", "energy")
+
+# File Paths (relative to PROJECT ROOT)
+# When running as 'python -m vpp.mcp.mcp_server', the cwd is usually the project root.
+MODEL_PATH = os.getenv("MODEL_PATH", "xgboost_smart_ml.ubj")
+FEATURES_PATH = os.getenv("FEATURES_PATH", "model_features.txt")
+
 # Loading existing model
-MODEL_PATH = "xgboost_smart_ml.ubj"
 model = xgb.Booster()
-model.load_model(MODEL_PATH)
+if os.path.exists(MODEL_PATH):
+    model.load_model(MODEL_PATH)
+    print(f"✓ Model loaded from {MODEL_PATH}")
+else:
+    print(f"⚠ Warning: Model not found at {MODEL_PATH}")
 
 # Load expected feature columns from model training
-# This ensures our features match exactly what the model expects
-try:
-    with open("model_features.txt", "r") as f:
-        expected_features = [line.strip() for line in f if line.strip()]
-except FileNotFoundError:
-    # If file doesn't exist, model will use whatever features we provide
-    expected_features = None
-    print("Warning: model_features.txt not found. Feature alignment may be inconsistent.")
+expected_features = None
+if os.path.exists(FEATURES_PATH):
+    try:
+        with open(FEATURES_PATH, "r") as f:
+            expected_features = [line.strip() for line in f if line.strip()]
+        print(f"✓ Loaded {len(expected_features)} expected features from {FEATURES_PATH}")
+    except Exception as e:
+        print(f"⚠ Error loading features: {e}")
+else:
+    print(f"⚠ Warning: {FEATURES_PATH} not found. Feature alignment may be inconsistent.")
 
 # Initialize GridFeatureStore for feature engineering
 feature_store = GridFeatureStore(window_size=49, expected_columns=expected_features)
-
-# InfluxDB Config
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "smg!indb25"
-ORG = "myorg"
-BUCKET = "energy"
 
 # --- RESOURCES ----
 @mcp.resource("grid://current-status")
@@ -215,4 +227,14 @@ def analyze_resilience():
 
 
 if __name__ == "__main__":
-    mcp.run()
+    # Cloud Run requires an HTTP server listening on $PORT
+    port = int(os.getenv("PORT", "8080"))
+    # Use SSE for cloud deployment, stdio for local debugging
+    transport = os.getenv("MCP_TRANSPORT", "sse")
+    
+    if transport == "sse":
+        print(f"🚀 Starting MCP Server on port {port} via SSE...")
+        mcp.run("sse", port=port)
+    else:
+        print("🤖 Starting MCP Server via stdio...")
+        mcp.run()

@@ -5,6 +5,7 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
+ENV PORT=8080
 
 # Set the working directory in the container
 WORKDIR /app
@@ -22,9 +23,9 @@ RUN pip install --no-cache-dir -r requirements_docker.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose ports (if any of the agents host a server, e.g., FastMCP)
-# For the MCP server, it usually runs over stdio but FastMCP can use HTTP.
-EXPOSE 8000
+# Cloud Run uses the PORT environment variable
+EXPOSE ${PORT}
 
-# Default command (can be overridden in docker-compose)
-CMD ["python", "-m", "vpp.agents.grid_agent"]
+# Run the MCP server with SSE transport by default
+# This allows the server to be reached over the network on Cloud Run
+CMD ["python", "-m", "vpp.mcp.mcp_server"]
