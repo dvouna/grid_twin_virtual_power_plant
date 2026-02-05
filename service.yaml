@@ -1,28 +1,28 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: vpp-mcp-server
+  name: smartgrid-mcp
   labels:
     cloud.googleapis.com/location: us-central1
 spec:
   template:
     spec:
       containers:
-      - image: us-central1-docker.pkg.dev/YOUR_PROJECT_ID/vpp-repo/vpp-mcp-server:latest
+      - image: gcr.io/igneous-study-486512-g4/mcp-server:latest
         ports:
         - containerPort: 8080
         env:
         - name: MCP_TRANSPORT
           value: "sse"
         - name: INFLUX_URL
-          value: "http://YOUR_INFLUX_IP:8086"
+          value: "https://YOUR_MANAGED_INFLUX_DOMAIN"
         - name: INFLUX_ORG
           value: "myorg"
         - name: INFLUX_BUCKET
           value: "energy"
-        # The INFLUX_TOKEN should ideally be managed via Secret Manager
+        # INFLUX_TOKEN should be set via Secret Manager or gcloud command
         - name: INFLUX_TOKEN
-          value: "YOUR_INFLUX_TOKEN"
+          value: "PLACEHOLDER"
         resources:
           limits:
             cpu: "1000m"
