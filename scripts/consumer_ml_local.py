@@ -19,17 +19,16 @@ TOPIC_NAME = 'grid-sensor-stream'
 
 KAFKA_CONF = {
     'bootstrap.servers': 'localhost:9092',
-    'group.id': 'ml-consumer-cloud-group',
+    'group.id': 'ml-consumer-group',
     'auto.offset.reset': 'earliest',
     'broker.address.family': 'v4'
 }
 
-# InfluxDB Cloud Settings (update these with your actual cloud credentials)
-INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
-INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
-INFLUX_ORG = os.getenv("INFLUX_CLOUD_ORG", "myorg")
-INFLUX_BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
-
+# InfluxDB Settings
+INFLUX_URL = "http://localhost:8086"
+INFLUX_TOKEN = "smg!indb25"
+INFLUX_ORG = "myorg"
+INFLUX_BUCKET = "energy"
 # Ramp Rate Thresholds (MW/min)
 # If power drops faster than this, we trigger an alarm.
 CRITICAL_DROP_THRESHOLD = -50  
@@ -95,8 +94,7 @@ def run_ml_consumer():
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
-    print(f"🚀 ML Consumer (CLOUD) started. Listening to {TOPIC_NAME}...")
-    print(f"📊 Writing to InfluxDB Cloud: {INFLUX_URL}")
+    print(f"🚀 ML Consumer started. Listening to {TOPIC_NAME}...")
 
     try:
         while True:
@@ -133,7 +131,7 @@ def run_ml_consumer():
             # --- DECISION ENGINE ---
             severity, action = prescribe_action(prediction_30min_change)
 
-            # E. Write to InfluxDB Cloud
+            # E. Write to InfluxDB
             point = Point("ml_predictions") \
                 .field("Solar_Output_kW", solar) \
                 .field("Wind_Output_kW", wind) \
@@ -152,7 +150,7 @@ def run_ml_consumer():
                 print(f"Normal: Load {net_load} | Predicted Change {prediction_30min_change:.2f} kW")
 
     except Exception as e:
-        print(f"Error in ML Consumer (Cloud): {e}")
+        print(f"Error in ML Consumer: {e}")
     finally:
         consumer.close()
         influx_client.close()

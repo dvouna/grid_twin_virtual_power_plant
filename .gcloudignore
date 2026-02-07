@@ -1,0 +1,29 @@
+# System & IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+*.swp
+*.log
+
+# Environment
+venv/
+.venv/
+.venv_backup/
+env/
+
+# Data & Models (Reduce build context size)
+data/
+models/
+# Include essential model files for MCP server
+!models/xgboost_smart_ml.ubj
+!models/model_features.txt
+
+# Local Dev & Testing Artifacts
+docker-compose*.yml
+test_output*.log
+integration_test_debug*.log
+.pytest_cache/
+.ruff_cache/

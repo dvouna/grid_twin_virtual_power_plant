@@ -1,0 +1,30 @@
+# Redpanda Connect (Benthos) Configuration
+# This bridge pipes data from local Redpanda to InfluxDB Cloud
+
+input:
+  kafka:
+    addresses: [ "redpanda:29092" ]
+    topics: [ "grid-sensor-stream" ]
+    consumer_group: "cloud-bridge"
+
+pipeline:
+  processors:
+    - log:
+        message: "Piping data point: ${! content() }"
+
+output:
+  influxdb:
+    url: "https://us-east-1-1.aws.cloud2.influxdata.com"
+    token: "doEFhyNcDDeuDS0RmBauQbk5s6Zt11i6yXebXbq3FDltnAOKXGCJVS-jzbNDl9Mh65LNLbwxhTq-oqnUt9VDeQ=="
+    organization: "Energy Simulation"
+    bucket: "energy"
+    # Measurement and field mapping
+    # Adjust path() based on your JSON structure
+    measurement: "grid_metrics"
+    fields_mapping: |
+      root.Net_Load_kW = this.Net_Load_kW
+      root.Renewable_Load_kW = this.Solar_kw + this.Wind_kw
+      root.B_SOC = this.B_SOC
+    tags_mapping: |
+      root.source = "local_grid"
+      root.site_id = "vpp_primary"

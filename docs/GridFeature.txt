@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from collections import deque
+from datetime import datetime
 
 class GridFeatureStore:
     def __init__(self, window_size=49, expected_columns=None):
@@ -24,27 +25,23 @@ class GridFeatureStore:
     def add_observation(self, payload):
         """Adds a new data point from Kafka to the state for downstream feature engineering."""
         # Create a clean dictionary with identical keys as expected by apply_* methods
-        # Use case-insensitive lookup for robustness
-        def g(key):
-            return payload.get(key) or payload.get(key.lower()) or 0
-
         row = {
-            'Timestamp': g('Timestamp'),
-            'Hist_Load': g('Hist_Load'),
-            'Elec_Load': g('Elec_Load'),
-            'Solar_kw': g('Solar_kw'),
-            'Wind_kw': g('Wind_kw'),
-            'RF_Error': g('RF_Error'),
-            'C_Flag': g('C_Flag'),
-            'C_R_S': g('C_R_S'),
-            'B_SOC': g('B_SOC'),
-            'Temp': g('Temp'),
-            'Humidity': g('Humidity'),
-            'S_Irr': g('S_Irr'),
-            'Cloud': g('Cloud'),
-            'W_Speed': g('W_Speed'),
-            'HPa': g('HPa'),
-            'Net_Load': g('Net_Load')
+            'Timestamp': payload.get('Timestamp', 0),
+            'Hist_Load': payload.get('Hist_Load', 0),
+            'Elec_Load': payload.get('Elec_Load', 0),
+            'Solar_kw': payload.get('Solar_kw', 0),
+            'Wind_kw': payload.get('Wind_kw', 0),
+            'RF_Error': payload.get('RF_Error', 0),
+            'C_Flag': payload.get('C_Flag', 0),
+            'C_R_S': payload.get('C_R_S', 0),
+            'B_SOC': payload.get('B_SOC', 0),
+            'Temp': payload.get('Temp', 0),
+            'Humidity': payload.get('Humidity', 0),
+            'S_Irr': payload.get('S_Irr', 0),
+            'Cloud': payload.get('Cloud', 0),
+            'W_Speed': payload.get('W_Speed', 0),
+            'HPa': payload.get('HPa', 0),
+            'Net_Load': payload.get('Net_Load', 0)
         }
 
         self.buffer.append(row)
@@ -103,20 +100,10 @@ class GridFeatureStore:
         
         df = pd.concat([df, pd.DataFrame(final_bits)], axis=1)
 
-        # 5. Extract the last row
+        # 5. Extract the last row and Align
         latest_features = df.iloc[[-1]].copy()
-
-        # 6. Strict Alignment: If we have expected columns, return ONLY those in that specific order
         if self.expected_columns:
-            # Reindexing handles: 
-            # 1. Dropping extra columns like 'Timestamp', 'Hour', etc. not in model
-            # 2. Filling missing columns (if any) with 0
-            # 3. Ensuring identical order as training
             latest_features = latest_features.reindex(columns=self.expected_columns).fillna(0)
-        else:
-            # Fallback: Drop original metadata columns if no expected_columns provided
-            drop_cols = ['Timestamp']
-            latest_features = latest_features.drop(columns=[c for c in drop_cols if c in latest_features.columns])
             
         return latest_features
 

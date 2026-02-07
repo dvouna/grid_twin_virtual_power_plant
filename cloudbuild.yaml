@@ -1,31 +1,46 @@
 steps:
-  # 1. Build the container image
+  # 1. Build the container image using the modern Artifact Registry path
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/mcp-server:$COMMIT_SHA', '.']
+    id: 'Build'
+    args: [
+      'build', 
+      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/mcp-server:$COMMIT_SHA', 
+      '.'
+    ]
 
-  # 2. Push the image to GCR (or Artifact Registry)
+  # 2. Push the image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/mcp-server:$COMMIT_SHA']
+    id: 'Push'
+    args: [
+      'push', 
+      'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/mcp-server:$COMMIT_SHA'
+    ]
 
-  # 3. Deploy to Cloud Run
+  # 3. Run Unit Tests (Inside the newly built container)
+  - name: 'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/mcp-server:$COMMIT_SHA'
+    id: 'Test'
+    entrypoint: 'python'
+    args: ['-m', 'pytest', 'tests/']
+
+  # 4. Inject the new image tag into service.yaml
+  # Note: Using '|' as a delimiter in sed to handle the '/' in the Registry URL
+  - name: 'bash'
+    id: 'Inject Image'
+    args:
+      - '-c'
+      - |
+        sed -i "s|image: .*|image: us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/mcp-server:$COMMIT_SHA|g" service.yaml
+
+  # 5. Deploy to Cloud Run using the manifest file
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy'
     entrypoint: gcloud
     args:
       - 'run'
-      - 'deploy'
-      - 'smartgrid-mcp'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/mcp-server:$COMMIT_SHA'
-      - '--region'
-      - 'us-central1'
-      - '--allow-unauthenticated'
-      - '--memory'
-      - '512Mi'
-      # Environmental configurations for managed services
-      - '--set-env-vars'
-      - 'MCP_TRANSPORT=sse,INFLUX_ORG=myorg,INFLUX_BUCKET=energy'
-      - '--update-env-vars'
-      - 'INFLUX_URL=https://YOUR_MANAGED_INFLUX_DOMAIN'
+      - 'services'
+      - 'replace'
+      - 'service.yaml'
+      - '--region=us-central1'
 
 images:
-  - 'gcr.io/$PROJECT_ID/mcp-server:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/mcp-server:$COMMIT_SHA'

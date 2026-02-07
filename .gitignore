@@ -1,22 +1,91 @@
-# Python
+# Python & Build
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
 .venv/
 .venv*/
 env/
 venv/
 ENV/
+env.bak/
+venv.bak/
 
-# Data
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# Data & Models (Large files)
 *.csv
+*.tsv
 *.ubj
 *.json
-*.txt
-*.log
-!docker-compose.yml
+*.sql
+*.sqlite
+data/
+models/
+# Keep essential config files
+!requirements.txt
+!requirements_docker.txt
+!requirements_clean.txt
+!redpanda-connect.yaml
+!cloudbuild.yaml
+!service.yaml
+!grid_twin_virtual_power_plant-
 
-# IDE
+# Logs & Debug
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing & Quality
+.coverage
+.tox/
+.nox/
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.ruff_cache/
+cover/
+
+# IDE & Editor
 .vscode/
 .idea/
 *.swp
+*.swo
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*

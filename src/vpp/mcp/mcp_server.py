@@ -1,4 +1,5 @@
 import os
+import sys
 import xgboost as xgb
 import pandas as pd
 from fastmcp import FastMCP
@@ -8,37 +9,42 @@ from vpp.core.GridFeatureStore import GridFeatureStore
 # ---- INITIALIZATION ----
 mcp = FastMCP("GridIntelligence")
 
+def log(message: str):
+    """Utility to log to stderr to avoid corrupting stdio transport."""
+    print(message, file=sys.stderr)
+
 # Environment Variables for Cloud Run 
-# These allow us to inject production credentials without changing code
 INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "smg!indb25")
 ORG = os.getenv("INFLUX_ORG", "myorg")
 BUCKET = os.getenv("INFLUX_BUCKET", "energy")
 
 # File Paths (relative to PROJECT ROOT)
-# When running as 'python -m vpp.mcp.mcp_server', the cwd is usually the project root.
-MODEL_PATH = os.getenv("MODEL_PATH", "xgboost_smart_ml.ubj")
-FEATURES_PATH = os.getenv("FEATURES_PATH", "model_features.txt")
+MODEL_PATH = os.getenv("MODEL_PATH", "models/xgboost_smart_ml.ubj")
+FEATURES_PATH = os.getenv("FEATURES_PATH", "models/model_features.txt")
 
 # Loading existing model
 model = xgb.Booster()
-if os.path.exists(MODEL_PATH):
-    model.load_model(MODEL_PATH)
-    print(f"✓ Model loaded from {MODEL_PATH}")
+abs_model_path = os.path.abspath(MODEL_PATH)
+if os.path.exists(abs_model_path):
+    model.load_model(abs_model_path)
+    log(f"✓ Model loaded from {abs_model_path}")
 else:
-    print(f"⚠ Warning: Model not found at {MODEL_PATH}")
+    log(f"⚠ Warning: Model not found at {abs_model_path}")
 
 # Load expected feature columns from model training
 expected_features = None
-if os.path.exists(FEATURES_PATH):
+abs_features_path = os.path.abspath(FEATURES_PATH)
+if os.path.exists(abs_features_path):
     try:
-        with open(FEATURES_PATH, "r") as f:
+        # Using utf-8-sig to automatically handle potential Byte Order Mark (BOM)
+        with open(abs_features_path, "r", encoding='utf-8-sig') as f:
             expected_features = [line.strip() for line in f if line.strip()]
-        print(f"✓ Loaded {len(expected_features)} expected features from {FEATURES_PATH}")
+        log(f"✓ Loaded {len(expected_features)} expected features from {abs_features_path}")
     except Exception as e:
-        print(f"⚠ Error loading features: {e}")
+        log(f"⚠ Error loading features: {e}")
 else:
-    print(f"⚠ Warning: {FEATURES_PATH} not found. Feature alignment may be inconsistent.")
+    log(f"⚠ Warning: {abs_features_path} not found. Feature alignment may be inconsistent.")
 
 # Initialize GridFeatureStore for feature engineering
 feature_store = GridFeatureStore(window_size=49, expected_columns=expected_features)
@@ -129,6 +135,8 @@ def add_grid_observation(
     buffer_size = len(feature_store.buffer)
     is_ready = feature_store.is_primed
     
+    # log(f"DEBUG: Added obs. Buffer size: {buffer_size}")
+    
     status = f"✓ Observation added. Buffer: {buffer_size}/49. "
     if is_ready:
         status += "Feature store is PRIMED and ready for predictions."
@@ -146,21 +154,31 @@ def predict_grid_ramp() -> str:
     Uses all 160 features (lags, rolling windows, interactions, cyclical features).
     
     Returns:
-        Prediction result with ramp magnitude and direction, or error if not ready
     """
     if not feature_store.is_primed:
         buffer_size = len(feature_store.buffer)
         return f"❌ Feature store not ready. Current buffer: {buffer_size}/49. Add {49 - buffer_size} more observations."
     
     # Get the engineered feature vector
-    features = feature_store.get_inference_vector()
+    try:
+        features = feature_store.get_inference_vector()
+    except Exception as e:
+        log(f"❌ Error in get_inference_vector: {e}")
+        import traceback
+        log(traceback.format_exc())
+        return f"Error: {e}"
     
     if features is None:
         return "❌ Failed to generate feature vector. Check feature store state."
     
     # Make prediction
-    dmatrix = xgb.DMatrix(features)
-    prediction = model.predict(dmatrix)[0]
+    try:
+        # Explicitly pass feature names to match model training expectations
+        dmatrix = xgb.DMatrix(features, feature_names=expected_features)
+        prediction = model.predict(dmatrix)[0]
+    except Exception as e:
+        log(f"❌ Error during XGBoost prediction: {e}")
+        return f"Prediction Error: {e}"
     
     # Interpret results
     direction = "UP" if prediction > 0 else "DOWN"
@@ -233,8 +251,8 @@ if __name__ == "__main__":
     transport = os.getenv("MCP_TRANSPORT", "sse")
     
     if transport == "sse":
-        print(f"🚀 Starting MCP Server on port {port} via SSE...")
+        log(f"🚀 Starting MCP Server on port {port} via SSE...")
         mcp.run("sse", port=port)
     else:
-        print("🤖 Starting MCP Server via stdio...")
-        mcp.run()
+        # For stdio, we must be absolutely silent on stdout
+        mcp.run("stdio")

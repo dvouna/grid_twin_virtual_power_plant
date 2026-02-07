@@ -2,28 +2,33 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: smartgrid-mcp
-  labels:
-    cloud.googleapis.com/location: us-central1
 spec:
   template:
+    metadata:
+      annotations:
+        # Helps with cold starts in 2026
+        run.googleapis.com/execution-environment: "gen2" # <--- CORRECT LOCATION
     spec:
       containers:
-      - image: gcr.io/igneous-study-486512-g4/mcp-server:latest
+      - # This placeholder will be replaced by your Cloud Build 'sed' command
+        image: us-central1-docker.pkg.dev/$PROJECT_ID/mcp-repo/mcp-server:latest
         ports:
         - containerPort: 8080
         env:
         - name: MCP_TRANSPORT
           value: "sse"
         - name: INFLUX_URL
-          value: "https://YOUR_MANAGED_INFLUX_DOMAIN"
+          value: "https://us-east-1-1.aws.cloud2.influxdata.com" # Updated to a likely real endpoint format
         - name: INFLUX_ORG
           value: "myorg"
         - name: INFLUX_BUCKET
           value: "energy"
-        # INFLUX_TOKEN should be set via Secret Manager or gcloud command
         - name: INFLUX_TOKEN
-          value: "PLACEHOLDER"
+          valueFrom:
+            secretKeyRef:
+              name: INFLUX_TOKEN
+              key: "latest"
         resources:
           limits:
-            cpu: "1000m"
+            cpu: "1000m" # 1 vCPU
             memory: "512Mi"

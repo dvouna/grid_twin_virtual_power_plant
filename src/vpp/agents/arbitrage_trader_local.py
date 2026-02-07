@@ -2,11 +2,11 @@ import time
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-# InfluxDB Cloud Settings (update these with your actual cloud credentials)
-INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
-INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
-INFLUX_ORG = os.getenv("INFLUX_CLOUD_ORG", "myorg")
-INFLUX_BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
+# InfluxDB Settings
+INFLUX_URL = "http://localhost:8086"
+INFLUX_TOKEN = "smg!indb25"
+INFLUX_ORG = "myorg"
+INFLUX_BUCKET = "energy"
 
 # --- BATTERY SPECS ---
 MAX_CAPACITY_kWH = 100.0  # Total size of your "Virtual Megapack"

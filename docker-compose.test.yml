@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  influxdb:
+    image: influxdb:2
+    container_name: influxdb-test
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=atlavt25
+      - DOCKER_INFLUXDB_INIT_PASSWORD=sm_ramp25
+      - DOCKER_INFLUXDB_INIT_ORG=myorg
+      - DOCKER_INFLUXDB_INIT_BUCKET=energy
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=smg!indb25
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8086/ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10

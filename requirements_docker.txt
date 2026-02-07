@@ -1,0 +1,12 @@
+confluent-kafka
+fastmcp
+influxdb-client
+mcp
+numpy
+pandas
+python-dotenv
+scikit-learn
+xgboost
+pytest
+pytest-mock
+pytest-asyncio
