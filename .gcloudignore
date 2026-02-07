@@ -16,8 +16,7 @@ env/
 
 # Data & Models (Reduce build context size)
 data/
-models/
-# Include essential model files for MCP server
+models/*
 !models/xgboost_smart_ml.ubj
 !models/model_features.txt
 

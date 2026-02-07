@@ -14,10 +14,10 @@ def log(message: str):
     print(message, file=sys.stderr)
 
 # Environment Variables for Cloud Run 
-INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
-INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "smg!indb25")
-ORG = os.getenv("INFLUX_ORG", "myorg")
-BUCKET = os.getenv("INFLUX_BUCKET", "energy")
+INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
+INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
+ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
+BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
 
 # File Paths (relative to PROJECT ROOT)
 MODEL_PATH = os.getenv("MODEL_PATH", "models/xgboost_smart_ml.ubj")
@@ -252,7 +252,8 @@ if __name__ == "__main__":
     
     if transport == "sse":
         log(f"🚀 Starting MCP Server on port {port} via SSE...")
-        mcp.run("sse", port=port)
+        # Bind to 0.0.0.0 to ensure it's accessible within the container
+        mcp.run("sse", port=port, host="0.0.0.0")
     else:
         # For stdio, we must be absolutely silent on stdout
         mcp.run("stdio")

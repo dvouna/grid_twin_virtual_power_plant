@@ -32,6 +32,8 @@ jobs:
           region: ${{ env.REGION }}
           # Source-based deploy handles container build automatically uses Buildpacks
           source: .
+          # Match successful manual deployment parameters
+          flags: --memory=1Gi --timeout=300s
           # Preserve InfluxDB and Transport config
           env_vars: |-
             INFLUX_CLOUD_URL=${{ secrets.INFLUX_CLOUD_URL }}
