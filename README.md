@@ -1,13 +1,9 @@
 # SmartGrid-AI: Predictive Resilience & Arbitrage Platform
 
-[![CI Build](https://img.shields.io/github/actions/workflow/status/dvouna/grid_twin_virtual_power_plant-/ci.yml?label=CI%20Build)](https://github.com/dvouna/grid_twin_virtual_power_plant-/actions)
-[![Unit Tests](https://img.shields.io/github/actions/workflow/status/dvouna/grid_twin_virtual_power_plant-/tests.yml?label=Unit%20Tests)](https://github.com/dvouna/grid_twin_virtual_power_plant-/actions)
-[![Codecov](https://img.shields.io/codecov/c/github/dvouna/grid_twin_virtual_power_plant-)](https://codecov.io/gh/dvouna/grid_twin_virtual_power_plant-)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
-[![Docker Ready](https://img.shields.io/badge/docker-ready-0db7ed)](https://www.docker.com/)
-[![Status](https://img.shields.io/badge/status-active-success)](#b-system-architecture)
-[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-orange)](#e-getting-started)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
+[![CI/CD Pipeline](https://img.shields.io/github/actions/workflow/status/dvouna/grid_twin_virtual_power_plant-/deploy-cloud-run.yml?label=CI%2FCD%20Pipeline)](https://github.com/dvouna/grid_twin_virtual_power_plant-/actions)
+[![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/)
+[![Cloud Run](https://img.shields.io/badge/Deployed-Cloud%20Run-blue?logo=google-cloud)](https://cloud.google.com/run)
+[![Status](https://img.shields.io/badge/status-production--ready-success)](#b-system-architecture)
 
 SmartGrid‑AI is an intelligent virtual power plant (VPP) platform that transforms raw grid telemetry into real‑time operational decisions. It blends streaming ingestion, stateful feature engineering, predictive modeling, and autonomous control agents to stabilize the grid and optimize economic outcomes.
 
@@ -38,12 +34,12 @@ Hosted on an MCP server, the SmartGrid‑AI agent can:
 ### 1. High-Level Flow
 
 ```text
-Module Purpose 
-   → [InfluxDB] 
-   → [Feature Store] 
-   → [MCP Agent] 
-   → [Response & Trading Agents] 
-   → [Grid Output]
+[Local Sensors] 
+   → [Redpanda Broker] 
+   → [Redpanda Connect VM Bridge] 
+   → [InfluxDB Cloud] 
+   → [MCP Server (Cloud Run)] 
+   → [AI Agents & Claude Desktop]
 ```
 
 ### 2. Detailed microservices Architecture
@@ -124,12 +120,13 @@ Captures non‑linear system behavior:
 | Layer | Technology |
 | :--- | :--- |
 | **Streaming** | Redpanda (Kafka-compatible) |
-| **Storage** | InfluxDB (time-series) |
-| **AI/ML** | XGBoost, Scikit-Learn, Pandas |
-| **Control** | Python Agents |
-| **Communication** | MCP (Model Context Protocol) |
-| **Visualization** | Grafana |
-| **Virtualization** | Docker, Docker Compose, GitHub Actions |
+| **Data Bridge** | Redpanda Connect (Benthos) |
+| **Cloud Hosting** | Google Cloud Run (Serverless) |
+| **Infrastructure** | Google Compute Engine (VM) |
+| **Security** | GCP Secret Manager, IAM Service Accounts |
+| **Storage** | InfluxDB Cloud (Time-Series) |
+| **AI/ML** | XGBoost, Scikit-Learn, FastMCP |
+| **CI/CD** | GitHub Actions (Source-to-Cloud) |
 
 ## E. Getting Started
 
@@ -197,6 +194,6 @@ $env:PYTHONPATH="src"; python -m vpp.intelligence.consumer
 
 ## G. Future Roadmap
 
-- **Cloud Evolution**: Migration to AWS MSK for managed streaming and Lambda for serverless inference.
+- **Digital Twin Sync**: Implementing high-fidelity physics-based simulation models for grid topology.
 - **Cybersecurity**: Implementation of False Data Injection Attack (FDIA) detection using predictive residuals.
 - **Cognitive Ops (RAG)**: Integrating Retrieval-Augmented Generation to allow the AI agent to cross-reference grid actions with NERC/FERC regulatory manuals.
