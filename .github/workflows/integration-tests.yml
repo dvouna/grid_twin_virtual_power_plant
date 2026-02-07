@@ -1,0 +1,88 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ "main", "mcp_agent" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      influxdb:
+        image: influxdb:2
+        ports:
+          - 8086:8086
+        env:
+          DOCKER_INFLUXDB_INIT_MODE: setup
+          DOCKER_INFLUXDB_INIT_USERNAME: atlavt25
+          DOCKER_INFLUXDB_INIT_PASSWORD: sm_ramp25
+          DOCKER_INFLUXDB_INIT_ORG: myorg
+          DOCKER_INFLUXDB_INIT_BUCKET: energy
+          DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: smg!indb25
+        options: >-
+          --health-cmd "curl -f http://localhost:8086/ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      
+      redpanda:
+        image: docker.redpanda.com/redpandadata/redpanda:latest
+        ports:
+          - 9092:9092
+        options: >-
+          --health-cmd "rpk cluster health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements_clean.txt ]; then pip install -r requirements_clean.txt; fi
+        pip install pytest pytest-mock pytest-asyncio
+    
+    - name: Wait for InfluxDB to be ready
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:8086/ping; do sleep 2; done'
+        echo "InfluxDB is ready!"
+    
+    - name: Create models directory
+      run: |
+        mkdir -p models
+        echo "Note: Integration tests will skip model-dependent tests if files are missing"
+    
+    - name: Run integration tests
+      env:
+        PYTHONPATH: src
+        TEST_INFLUX_URL: http://localhost:8086
+        TEST_INFLUX_TOKEN: smg!indb25
+        TEST_INFLUX_ORG: myorg
+        TEST_INFLUX_BUCKET: energy
+        # Ensure cloud-targeted scripts also hit local instance
+        INFLUX_CLOUD_URL: http://localhost:8086
+        INFLUX_CLOUD_TOKEN: smg!indb25
+        INFLUX_CLOUD_ORG: myorg
+        INFLUX_CLOUD_BUCKET: energy
+        KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      run: |
+        pytest tests/ -m integration -v --tb=short
+    
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-logs
+        path: |
+          *.log
+          test_output*.log

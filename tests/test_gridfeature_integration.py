@@ -45,6 +45,9 @@ def generate_sample_observations(count=50):
     return observations
 
 
+import pytest
+
+@pytest.mark.integration
 def test_gridfeaturestore_integration():
     """Test the GridFeatureStore functionality that MCP server uses"""
     print("="*70)

@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDES
+.vscode/
+.idea/
+
+# CI/CD
+.github/
+.agent/
+cloudbuild.yaml
+cloudbuild.yaml.deprecated
+
+# User-specific
+.env
+
+# Tests
+tests/
+pytest.ini
+coverage.xml
+.coverage
+
+# Documentation
+docs/
+README.md

@@ -1,3 +1,6 @@
+# ⚠️ DEPRECATED: This file is no longer used for CI/CD.
+# Please refer to .github/workflows/deploy-cloud-run.yml for the active deployment pipeline.
+
 steps:
   # 1. Build the container image using the modern Artifact Registry path
   - name: 'gcr.io/cloud-builders/docker'

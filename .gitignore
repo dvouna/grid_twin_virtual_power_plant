@@ -88,4 +88,17 @@ cover/
 
 # Jupyter Notebooks
 .ipynb_checkpoints
-*/.ipynb_checkpoints/*
+*/.ipynb_checkpoints/* 
+
+# local files
+consumer_ml_local.py
+arbitrage_trader_local.py
+grid_response_local.py 
+
+# Temporary Scripts
+reproduce_bug.py
+check_alignment.py
+
+# Agent State
+.agent/
+.gemini/

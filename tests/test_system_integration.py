@@ -20,10 +20,17 @@ server_params = StdioServerParameters(
         "FEATURES_PATH": "models/model_features.txt",
         "INFLUX_URL": os.getenv("TEST_INFLUX_URL", "http://localhost:8086"),
         "INFLUX_TOKEN": os.getenv("TEST_INFLUX_TOKEN", "smg!indb25"),
-        "INFLUX_ORG": "myorg",
-        "INFLUX_BUCKET": "energy"
+        "INFLUX_ORG": os.getenv("TEST_INFLUX_ORG", "myorg"),
+        "INFLUX_BUCKET": os.getenv("TEST_INFLUX_BUCKET", "energy"),
+        # Map Cloud variables to Local Test instance for safety
+        "INFLUX_CLOUD_URL": os.getenv("TEST_INFLUX_URL", "http://localhost:8086"),
+        "INFLUX_CLOUD_TOKEN": os.getenv("TEST_INFLUX_TOKEN", "smg!indb25"),
+        "INFLUX_CLOUD_ORG": os.getenv("TEST_INFLUX_ORG", "myorg"),
+        "INFLUX_CLOUD_BUCKET": os.getenv("TEST_INFLUX_BUCKET", "energy")
     }
 )
+
+@pytest.mark.integration
 
 def generate_sample_observations(count=50):
     """Generate sample grid observations for testing"""

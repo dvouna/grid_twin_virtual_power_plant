@@ -18,3 +18,22 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda-test
+    command:
+      - redpanda start
+      - --smp 1
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda-test:29092,external://localhost:9092
+      - --set redpanda.enable_admin_api=true
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: [ "CMD", "rpk", "cluster", "health" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
