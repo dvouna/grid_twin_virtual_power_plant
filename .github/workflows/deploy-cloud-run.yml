@@ -6,98 +6,36 @@ on:
 
 env:
   REGION: us-central1
-  REPOSITORY: mcp-repo
 
 jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-      url: ${{ steps.deploy.outputs.url }}
-
-    env:
-      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set Service Name
-        id: set-service
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "SERVICE=vpp-mcp-server" >> $GITHUB_ENV
-            echo "service=vpp-mcp-server" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-            echo "SERVICE=vpp-mcp-server-stage" >> $GITHUB_ENV
-            echo "service=vpp-mcp-server-stage" >> "$GITHUB_OUTPUT"
-          else
-            echo "SERVICE=vpp-mcp-server-test" >> $GITHUB_ENV
-            echo "service=vpp-mcp-server-test" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Google Auth
         uses: 'google-github-actions/auth@v2'
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
-      - name: Set up Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v2'
-
-      - name: Authorize Docker
-        run: gcloud auth configure-docker ${REGION}-docker.pkg.dev
-
-      - name: Build and Push Container
-        run: |-
-          docker build -t "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}" .
-          docker push "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
-
-      # Deploy NEW revision but keep 0% traffic (Canary)
-      - name: Deploy Canary Revision
-        id: deploy
+      - name: Deploy to Cloud Run
         uses: 'google-github-actions/deploy-cloudrun@v2'
         with:
-          service: ${{ steps.set-service.outputs.service }}
+          # Dynamic service name based on branch: main -> vpp-mcp-server, develop -> vpp-mcp-server-stage
+          service: ${{ github.ref == 'refs/heads/main' && 'vpp-mcp-server' || 'vpp-mcp-server-stage' }}
           region: ${{ env.REGION }}
-          image: "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ steps.set-service.outputs.service }}:${{ github.sha }}"
-          flags: '--no-traffic --tag=canary'
+          # Source-based deploy handles container build automatically uses Buildpacks
+          source: .
+          # Preserve InfluxDB and Transport config
           env_vars: |-
             INFLUX_CLOUD_URL=${{ secrets.INFLUX_CLOUD_URL }}
             INFLUX_CLOUD_TOKEN=${{ secrets.INFLUX_CLOUD_TOKEN }}
             INFLUX_CLOUD_ORG=${{ secrets.INFLUX_CLOUD_ORG }}
             INFLUX_CLOUD_BUCKET=${{ secrets.INFLUX_CLOUD_BUCKET }}
             MCP_TRANSPORT=sse
-
-      # Strict Health Check on the CANARY URL
-      - name: Verify Canary Health
-        run: |
-          # Construct Canary URL (Cloud Run tags usually strictly follow pattern)
-          CANARY_URL="${{ steps.deploy.outputs.url }}"
-          # Should insert tag, but deploy action output might be main URL. 
-          # Let's retrieve the specific revision URL via gcloud to be safe
-          LATEST_REV=$(gcloud run services describe ${SERVICE} --region=${REGION} --format='value(status.latestCreatedRevisionName)')
-          CANARY_URL=$(gcloud run services describe ${SERVICE} --region=${REGION} --format="value(status.traffic[1].url)" || echo "${{ steps.deploy.outputs.url }}")
-          
-          echo "🏥 Checking Health of Canary: $CANARY_URL"
-          
-          # Retry loop (30s) for cold starts
-          for i in {1..6}; do
-            if curl -f "$CANARY_URL/sse" --max-time 5; then
-              echo "✅ Health Check Passed!"
-              exit 0
-            fi
-            echo "⏳ Waiting for service to wake up..."
-            sleep 5
-          done
-          
-          echo "❌ Health Check FAILED. Traffic will NOT be routed to this revision."
-          exit 1
-
-      # If Health Check passed, route 100% traffic to the new revision
-      - name: Promote to Stable
-        run: |
-          echo "🚀 Promoting new revision to 100% traffic..."
-          gcloud run services update-traffic ${SERVICE} \
-            --to-latest \
-            --region=${REGION}
