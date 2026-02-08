@@ -55,7 +55,7 @@ class MCPServerTester:
     
     def __init__(self):
         self.model = None
-        self.model_path = "xgboost_smart_ml.ubj"
+        self.model_path = "models/xgboost_smart_ml.ubj"
         self.results = []
         
     def load_model(self):
@@ -86,7 +86,7 @@ class MCPServerTester:
                 original_client = None
                 try:
                     # Import and call the function directly
-                    with patch('influxdb_client.InfluxDBClient', MockInfluxDBClient):
+                    with patch('vpp.mcp.mcp_server.InfluxDBClient', MockInfluxDBClient):
                         result = mcp_server.get_grid_status()
                     
                     print(f"✓ Resource Result: {result}")

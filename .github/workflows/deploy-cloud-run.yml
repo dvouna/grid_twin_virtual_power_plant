@@ -6,6 +6,9 @@ on:
 
 env:
   REGION: us-central1
+  GCP_PROJECT_ID: igneous-study-486512-g4
+  WIF_PROVIDER_NAME: projects/207186852167/locations/global/workloadIdentityPools/vpp-provider/providers/github-provider
+  GCP_SERVICE_ACCOUNT: vpp-mcp-sa@igneous-study-486512-g4.iam.gserviceaccount.com
 
 jobs:
   test:
@@ -48,7 +51,8 @@ jobs:
       - name: Google Auth
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
+          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
 
       - name: Deploy to Cloud Run (Staging)
         uses: 'google-github-actions/deploy-cloudrun@v2'
@@ -56,7 +60,7 @@ jobs:
           service: vpp-mcp-server-stage
           region: ${{ env.REGION }}
           source: .
-          service_account: vpp-mcp-sa@igneous-study-486512-g4.iam.gserviceaccount.com
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
           flags: --memory=1Gi --timeout=300s --startup-cpu-boost --startup-probe-type=http-get --startup-probe-path=/sse --liveness-probe-type=http-get --liveness-probe-path=/sse
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
@@ -83,7 +87,8 @@ jobs:
       - name: Google Auth
         uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
+          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
 
       - name: Deploy to Cloud Run (Production)
         uses: 'google-github-actions/deploy-cloudrun@v2'
@@ -91,7 +96,7 @@ jobs:
           service: vpp-mcp-server
           region: ${{ env.REGION }}
           source: .
-          service_account: vpp-mcp-sa@igneous-study-486512-g4.iam.gserviceaccount.com
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
           flags: --memory=1Gi --timeout=300s --startup-cpu-boost --startup-probe-type=http-get --startup-probe-path=/sse --liveness-probe-type=http-get --liveness-probe-path=/sse
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest

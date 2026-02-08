@@ -57,7 +57,7 @@ def test_gridfeaturestore_integration():
     # Test 1: Load model features
     print("\n[1/5] Loading model features...")
     try:
-        with open("model_features.txt", "r") as f:
+        with open("models/model_features.txt", "r") as f:
             expected_features = [line.strip() for line in f if line.strip()]
         print(f"✓ Loaded {len(expected_features)} expected features")
     except FileNotFoundError:
@@ -104,7 +104,7 @@ def test_gridfeaturestore_integration():
     print("\n[5/5] Testing model prediction...")
     try:
         model = xgb.Booster()
-        model.load_model("xgboost_smart_ml.ubj")
+        model.load_model("models/xgboost_smart_ml.ubj")
         print("✓ Model loaded successfully")
         
         # Make prediction
