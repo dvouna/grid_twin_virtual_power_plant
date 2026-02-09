@@ -145,9 +145,9 @@ def test_gridfeaturestore_integration():
     print(f"  - Compatible with XGBoost model format ✓")
     print(f"  - Ready for MCP server integration ✓")
     
-    return True
+    # Test passes if we reach here without exceptions
 
 
 if __name__ == "__main__":
-    success = test_gridfeaturestore_integration()
-    sys.exit(0 if success else 1)
+    test_gridfeaturestore_integration()
+    sys.exit(0)
