@@ -14,6 +14,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     librdkafka-dev \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 3. Install Python Dependencies

@@ -1,5 +1,6 @@
 import os
 import sys
+import signal
 import xgboost as xgb
 from fastmcp import FastMCP
 from influxdb_client import InfluxDBClient
@@ -22,6 +23,13 @@ def log(message: str):
     """Utility to log to stderr to avoid corrupting stdio transport."""
     print(message, file=sys.stderr)
 
+# Graceful shutdown handler
+def sigterm_handler(_signo, _stack_frame):
+    log("Received SIGTERM. Shutting down gracefully...")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, sigterm_handler)
+
 # Environment Variables for Cloud Run 
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
 INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
@@ -32,23 +40,36 @@ BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
 MODEL_PATH = os.getenv("MODEL_PATH", "models/xgboost_smart_ml.ubj")
 FEATURES_PATH = os.getenv("FEATURES_PATH", "models/model_features.txt")
 
+# Debugging Info
+log(f"Current Working Directory: {os.getcwd()}")
+abs_models_dir = os.path.abspath("models")
+if os.path.exists(abs_models_dir):
+    log(f"Models directory found at {abs_models_dir}")
+    log(f"Directory contents: {os.listdir(abs_models_dir)}")
+else:
+    log(f"⚠ Warning: Models directory NOT FOUND at {abs_models_dir}")
+
 # Loading existing model
 model = None
 abs_model_path = os.path.abspath(MODEL_PATH)
+log(f"Attempting to load model from: {abs_model_path}")
+
 if os.path.exists(abs_model_path):
     try:
         model = xgb.Booster()
         model.load_model(abs_model_path)
-        log(f"Model loaded from {abs_model_path}")
+        log(f"✓ Model successfully loaded from {abs_model_path}")
     except Exception as e:
-        log(f"Error loading model: {e}")
+        log(f"❌ Error loading model: {e}")
         model = None
 else:
-    log(f"Warning: Model not found at {abs_model_path}")
+    log(f"⚠ Warning: Model file NOT FOUND at {abs_model_path}")
 
 # Load expected feature columns from model training
 expected_features = None
 abs_features_path = os.path.abspath(FEATURES_PATH)
+log(f"Attempting to load features from: {abs_features_path}")
+
 if os.path.exists(abs_features_path):
     try:
         # Using utf-8-sig to automatically handle potential Byte Order Mark (BOM)
@@ -56,9 +77,9 @@ if os.path.exists(abs_features_path):
             expected_features = [line.strip() for line in f if line.strip()]
         log(f"✓ Loaded {len(expected_features)} expected features from {abs_features_path}")
     except Exception as e:
-        log(f"⚠ Error loading features: {e}")
+        log(f"❌ Error loading features: {e}")
 else:
-    log(f"⚠ Warning: {abs_features_path} not found. Feature alignment may be inconsistent.")
+    log(f"⚠ Warning: Features file NOT FOUND at {abs_features_path}")
 
 # Initialize GridFeatureStore for feature engineering
 feature_store = GridFeatureStore(window_size=49, expected_columns=expected_features)
