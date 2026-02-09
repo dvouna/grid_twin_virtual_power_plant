@@ -4,9 +4,19 @@ import xgboost as xgb
 from fastmcp import FastMCP
 from influxdb_client import InfluxDBClient
 from vpp.core.GridFeatureStore import GridFeatureStore
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
 
 # ---- INITIALIZATION ----
 mcp = FastMCP("GridIntelligence")
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> PlainTextResponse:
+    """Answers the Cloud Run Startup Probe."""
+    # Ensure model is ready before serving traffic
+    if not model:
+        return PlainTextResponse("Model Not Loaded", status_code=503)
+    return PlainTextResponse("OK", status_code=200)
 
 def log(message: str):
     """Utility to log to stderr to avoid corrupting stdio transport."""
@@ -23,11 +33,16 @@ MODEL_PATH = os.getenv("MODEL_PATH", "models/xgboost_smart_ml.ubj")
 FEATURES_PATH = os.getenv("FEATURES_PATH", "models/model_features.txt")
 
 # Loading existing model
-model = xgb.Booster()
+model = None
 abs_model_path = os.path.abspath(MODEL_PATH)
 if os.path.exists(abs_model_path):
-    model.load_model(abs_model_path)
-    log(f"Model loaded from {abs_model_path}")
+    try:
+        model = xgb.Booster()
+        model.load_model(abs_model_path)
+        log(f"Model loaded from {abs_model_path}")
+    except Exception as e:
+        log(f"Error loading model: {e}")
+        model = None
 else:
     log(f"Warning: Model not found at {abs_model_path}")
 

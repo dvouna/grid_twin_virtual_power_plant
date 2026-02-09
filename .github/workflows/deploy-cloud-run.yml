@@ -68,7 +68,7 @@ jobs:
           region: ${{ env.REGION }}
           source: .
           timeout: '300s'
-          flags: '--memory=1Gi --cpu-boost --startup-probe=httpGet.path=/sse,httpGet.port=8080 --liveness-probe=httpGet.path=/sse,httpGet.port=8080'
+          flags: '--memory=1Gi --cpu-boost --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=10,periodSeconds=5,failureThreshold=3 --liveness-probe=httpGet.path=/health,httpGet.port=8080 --no-allow-unauthenticated'
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
@@ -126,7 +126,7 @@ jobs:
           region: ${{ env.REGION }}
           source: .
           timeout: '300s'
-          flags: '--memory=1Gi --cpu-boost --startup-probe=httpGet.path=/sse,httpGet.port=8080 --liveness-probe=httpGet.path=/sse,httpGet.port=8080'
+          flags: '--memory=1Gi --cpu-boost --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=10,periodSeconds=5,failureThreshold=3 --liveness-probe=httpGet.path=/health,httpGet.port=8080 --no-allow-unauthenticated'
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest

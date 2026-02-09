@@ -12,3 +12,4 @@ pytest-mock
 pytest-asyncio
 setuptools<81
 ruff
+starlette

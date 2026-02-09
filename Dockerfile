@@ -3,7 +3,7 @@ FROM python:3.11-slim
 # 1. Standardize Environment Variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app \
+    PYTHONPATH=/app/src \
     PORT=8080 \
     MODEL_PATH=models/xgboost_smart_ml.ubj \
     FEATURES_PATH=models/model_features.txt
