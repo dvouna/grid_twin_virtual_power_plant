@@ -13,12 +13,7 @@ venv/
 .venv/
 .venv_backup/
 env/
-
-# Data & Models (Reduce build context size)
 data/
-models/*
-!models/xgboost_smart_ml.ubj
-!models/model_features.txt
 
 # Local Dev & Testing Artifacts
 docker-compose*.yml

@@ -20,11 +20,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements_docker.txt .
 RUN pip install --no-cache-dir -r requirements_docker.txt
 
-# 4. Copy Code (Ensure .dockerignore excludes __pycache__ and .git)
-COPY . .
-
-# 5. Security: Run as non-privileged user
+# 4. Security: Create non-privileged user
 RUN useradd -m mcpuser
+
+# 5. Copy Code (Ensure .dockerignore excludes __pycache__ and .git)
+# Ensure files are owned by the non-privileged user
+COPY --chown=mcpuser:mcpuser . .
+
 USER mcpuser
 
 EXPOSE 8080
