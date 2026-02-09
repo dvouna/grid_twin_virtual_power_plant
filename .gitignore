@@ -36,15 +36,12 @@ venv.bak/
 .env.*
 !.env.example
 
-# Data & Models (Large files)
+# Data (Large files - but keep models for deployment)
 *.csv
 *.tsv
-*.ubj
-*.json
 *.sql
 *.sqlite
 data/
-models/
 # Keep essential config files
 !requirements.txt
 !requirements_docker.txt
