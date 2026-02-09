@@ -65,7 +65,7 @@ jobs:
           service: vpp-mcp-server-stage
           region: ${{ env.REGION }}
           source: .
-          flags: --memory=1Gi --timeout=300s --startup-cpu-boost --startup-probe-type=http-get --startup-probe-path=/sse --liveness-probe-type=http-get --liveness-probe-path=/sse
+          flags: --memory=1Gi --timeout=300s --startup-cpu-boost --startup-probe-type=http --startup-probe-path=/sse --liveness-probe-type=http --liveness-probe-path=/sse
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
@@ -108,7 +108,7 @@ jobs:
           service: vpp-mcp-server
           region: ${{ env.REGION }}
           source: .
-          flags: --memory=1Gi --timeout=300s --startup-cpu-boost --startup-probe-type=http-get --startup-probe-path=/sse --liveness-probe-type=http-get --liveness-probe-path=/sse
+          flags: --memory=1Gi --timeout=300s --startup-cpu-boost --startup-probe-type=http --startup-probe-path=/sse --liveness-probe-type=http --liveness-probe-path=/sse
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
