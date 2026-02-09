@@ -7,6 +7,8 @@ on:
 env:
   REGION: us-central1
   GCP_PROJECT_ID: igneous-study-486512-g4
+  REDPANDA_VM_NAME: redpanda-connect-vm
+  REDPANDA_VM_ZONE: us-central1-a
   WIF_PROVIDER_NAME: projects/207186852167/locations/global/workloadIdentityPools/vpp-provider/providers/github-provider
   GCP_SERVICE_ACCOUNT: vpp-mcp-sa@igneous-study-486512-g4.iam.gserviceaccount.com
 
@@ -79,7 +81,7 @@ jobs:
         run: |
           echo "Waiting for staging deployment to be ready..."
           sleep 30
-          echo "✅ Staging deployment successful"
+          echo "Staging deployment successful"
 
       - name: Create Deployment Summary
         if: success()
@@ -92,7 +94,9 @@ jobs:
           echo "| **Environment** | ${{ github.job }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "View the logs in the [Google Cloud Console](https://console.cloud.google.com/run/detail/${{ env.REGION }}/vpp-mcp-server-stage/logs?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "### Infrastructure Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Cloud Run Service Logs](https://console.cloud.google.com/run/detail/${{ env.REGION }}/vpp-mcp-server-stage/logs?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Redpanda Connect VM](https://console.cloud.google.com/compute/instancesDetail/zones/${{ env.REDPANDA_VM_ZONE }}/instances/${{ env.REDPANDA_VM_NAME }}?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
 
   deploy-production:
     name: Deploy to Production
@@ -133,8 +137,8 @@ jobs:
 
       - name: Production Deployment Complete
         run: |
-          echo "✅ Production deployment successful"
-          echo "🚀 Service URL: https://vpp-mcp-server-${{ env.REGION }}.run.app"
+          echo "Production deployment successful"
+          echo "Service URL: https://vpp-mcp-server-${{ env.REGION }}.run.app"
 
       - name: Create Deployment Summary
         if: success()
@@ -147,4 +151,6 @@ jobs:
           echo "| **Environment** | ${{ github.job }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "View the logs in the [Google Cloud Console](https://console.cloud.google.com/run/detail/${{ env.REGION }}/vpp-mcp-server/logs?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "### Infrastructure Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Cloud Run Service Logs](https://console.cloud.google.com/run/detail/${{ env.REGION }}/vpp-mcp-server/logs?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Redpanda Connect VM](https://console.cloud.google.com/compute/instancesDetail/zones/${{ env.REDPANDA_VM_ZONE }}/instances/${{ env.REDPANDA_VM_NAME }}?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
