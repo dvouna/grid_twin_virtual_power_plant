@@ -60,6 +60,16 @@ jobs:
           workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
           service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
 
+      - name: Verify Model Presence
+        run: |
+          echo "Checking for model files..."
+          ls -R models/
+          if [ ! -f "models/xgboost_smart_ml.ubj" ]; then
+            echo "❌ CRITICAL: Model file missing in build context!"
+            exit 1
+          fi
+          echo "✓ Model file found."
+
       - name: Deploy to Cloud Run (Staging)
         id: deploy
         uses: 'google-github-actions/deploy-cloudrun@v2'
@@ -121,6 +131,16 @@ jobs:
         with:
           workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
           service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+
+      - name: Verify Model Presence
+        run: |
+          echo "Checking for model files..."
+          ls -R models/
+          if [ ! -f "models/xgboost_smart_ml.ubj" ]; then
+            echo "❌ CRITICAL: Model file missing in build context!"
+            exit 1
+          fi
+          echo "✓ Model file found."
 
       - name: Deploy to Cloud Run (Production)
         id: deploy

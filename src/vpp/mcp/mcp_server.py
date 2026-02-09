@@ -36,9 +36,10 @@ INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
 ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
 BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
 
-# File Paths (relative to PROJECT ROOT)
-MODEL_PATH = os.getenv("MODEL_PATH", "models/xgboost_smart_ml.ubj")
-FEATURES_PATH = os.getenv("FEATURES_PATH", "models/model_features.txt")
+# File Paths (Absolute hooks)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "xgboost_smart_ml.ubj")
+FEATURES_PATH = os.path.join(BASE_DIR, "models", "model_features.txt")
 
 # Debugging Info
 log(f"Current Working Directory: {os.getcwd()}")

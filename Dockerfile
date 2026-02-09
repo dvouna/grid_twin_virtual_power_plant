@@ -24,9 +24,11 @@ RUN pip install --no-cache-dir -r requirements_docker.txt
 # 4. Security: Create non-privileged user
 RUN useradd -m mcpuser
 
-# 5. Copy Code (Ensure .dockerignore excludes __pycache__ and .git)
+# 5. Copy Code (Explicitly to ensure build fails if files are missing)
 # Ensure files are owned by the non-privileged user
-COPY --chown=mcpuser:mcpuser . .
+COPY --chown=mcpuser:mcpuser src/ ./src/
+COPY --chown=mcpuser:mcpuser models/ ./models/
+COPY --chown=mcpuser:mcpuser requirements_docker.txt .
 
 USER mcpuser
 

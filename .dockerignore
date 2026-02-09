@@ -33,6 +33,9 @@ pytest.ini
 coverage.xml
 .coverage
 
-# Documentation
 docs/
 README.md
+
+# Ensure models are included
+!models/
+!models/**

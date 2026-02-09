@@ -21,3 +21,7 @@ test_output*.log
 integration_test_debug*.log
 .pytest_cache/
 .ruff_cache/
+
+# FORCE INCLUDE MODELS
+!models/
+!models/**
