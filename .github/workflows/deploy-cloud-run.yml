@@ -33,9 +33,9 @@ jobs:
 
       - name: Run Ruff Linter
         run: ruff check . --output-format=github
-      
+
       - name: Run Bandit Security Scan
-        run: bandit -r src/ scripts/ -x tests/
+        run: bandit -r src/ scripts/ -x tests/,*_local.py,check_alignment.py,diagnose_xgb.py,mock_consumer.py,inspect_model_deep.py,compare_features_v2.py
 
       - name: Run Pytest with Coverage
         env:

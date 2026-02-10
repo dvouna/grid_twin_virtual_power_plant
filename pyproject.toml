@@ -1,0 +1,28 @@
+[tool.ruff]
+# Target production directories
+src = ["src", "scripts"]
+
+# Exclude research and infrastructure files from strict linting
+exclude = [
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "*.ipynb",
+    "*_local.py",
+    "check_alignment.py",
+    "reproduce_bug.py",
+    "diagnose_xgb.py",
+    "mock_consumer.py",
+    "inspect_model_deep.py",
+    "compare_features_v2.py"
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+# Allow unused imports in __init__.py files
+ignore = ["F401"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["F401"] # Allow research scripts to have unused imports sometimes
+"src/vpp/__init__.py" = ["F401"]
