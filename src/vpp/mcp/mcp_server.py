@@ -289,8 +289,9 @@ if __name__ == "__main__":
     transport = os.getenv("MCP_TRANSPORT", "sse")
     
     if transport == "sse":
-        log(f"🚀 Starting MCP Server on port {port} via SSE with /health check...")
-        mcp.run(transport="sse", host="0.0.0.0", port=port)
+        host = os.getenv("HOST", "0.0.0.0")
+        log(f"🚀 Starting MCP Server on port {port} on {host} via SSE...")  # nosec B104
+        mcp.run(transport="sse", host=host, port=port)
     else:
         # Standard input/output for local Claude Desktop use
         mcp.run(transport="stdio")

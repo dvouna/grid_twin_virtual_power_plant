@@ -7,8 +7,10 @@ pandas
 python-dotenv
 scikit-learn
 xgboost
+ruff
+bandit
 pytest
+pytest-cov
 pytest-mock
 pytest-asyncio
 setuptools<81
-ruff

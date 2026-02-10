@@ -3,7 +3,7 @@ import time
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-# InfluxDB Cloud Settings (update these with your actual cloud credentials)
+# InfluxDB Cloud Settings (Source from env for cloud readiness)
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
 INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
 INFLUX_ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
@@ -24,9 +24,9 @@ def run_arbitrage_trader():
 
     try:
         while True:
-            # 1. Pull the latest ML Prediction
+            # 1. Pull the latest ML Prediction (Using 5m range for cloud robustness)
             query = f'from(bucket: "{INFLUX_BUCKET}") \
-                      |> range(start: -2m) \
+                      |> range(start: -5m) \
                       |> filter(fn: (r) => r["_measurement"] == "ml_predictions") \
                       |> last()'
             
@@ -69,6 +69,7 @@ def run_arbitrage_trader():
                 .tag("trade_action", trade_action)
             
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+            # log(f"DEBUG: Data written to InfluxDB Cloud") # Optional: uncomment for verbose logging
 
             if trade_action != "HOLD":
                 print(f"📉 [TRADE] {trade_action} {trade_volume_kw }kW | SoC: {current_soc_kWH:.2f}kWh")

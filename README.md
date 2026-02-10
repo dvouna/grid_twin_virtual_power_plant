@@ -181,8 +181,8 @@ python -m vpp.agents.grid_response_actor
 python -m vpp.agents.arbitrage_trader
 
 # 3. Start Data Pipeline
-python -m vpp.intelligence.producer
-python -m vpp.intelligence.consumer
+python scripts/producer.py
+python scripts/consumer_ml.py
 ```
 
 ### Deploying to Cloud Run
@@ -207,15 +207,18 @@ grid_twin_virtual_power_plant-/
 ├── .github/workflows/       # CI/CD pipelines
 │   └── deploy-cloud-run.yml
 ├── src/vpp/
-│   ├── intelligence/        # ML & streaming pipeline
-│   │   ├── producer.py      # Data ingestion
-│   │   ├── consumer_ml.py   # ML inference consumer
-│   │   └── GridFeatureStore.py  # Feature engineering
+│   ├── core/                # Core logic & state
+│   │   ├── GridFeatureStore.py  # Feature engineering
+│   │   └── VPPPredictor.py  # Unified ML inference
 │   ├── agents/              # Autonomous control agents
 │   │   ├── grid_response_actor.py
 │   │   └── arbitrage_trader.py
 │   └── mcp/                 # MCP server (the "brain")
 │       └── mcp_server.py
+├── scripts/                 # Operational scripts
+│   ├── producer.py          # Data ingestion simulation
+│   ├── consumer_ml.py       # ML inference consumer
+│   └── consumer_prescriptive.py # Rule-based consumer
 ├── tests/                   # Unit & integration tests
 ├── models/                  # Trained ML models
 ├── data/                    # Historical grid data
@@ -276,7 +279,7 @@ Rolling buffer (50 observations) captures momentum:
 pytest -m "not integration" -v
 
 # Run linter
-ruff check src/ tests/ --output-format=github
+ruff check src/ scripts/ tests/ consumer_prescriptive.py
 
 # Run all tests (requires Redpanda + InfluxDB)
 pytest -v

@@ -36,7 +36,6 @@ def run_producer():
             Timestamp = row.get('Timestamp')
             Hour = row.get('Hour of Day')
             Day = row.get('Day of Week')
-            Weekend = row.get('Is Weekend')
             Month = row.get('Month')
             Hist_Load = float(row.get('Historical Electricity Load (kW)', 0))
             Elec = float(row.get('Electricity Load', 0))

@@ -1,7 +1,4 @@
 import json
-import collections
-import pandas as pd
-import time
 from datetime import datetime
 from confluent_kafka import Consumer
 from influxdb_client import InfluxDBClient, Point
@@ -44,6 +41,10 @@ def prescribe_action(ramp_rate):
 
 # --- 3. MAIN LOOP ---
 def start_consumer():
+    # Initialize State Variables
+    previous_load = None
+    previous_time = None
+
     # Initialize Clients
     consumer = Consumer(KAFKA_CONF)
     consumer.subscribe([TOPIC_NAME])

@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -30,15 +30,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff pytest # Ensure test tools are installed
 
       - name: Run Ruff Linter
-        run: ruff check src/ tests/ --output-format=github
+        run: ruff check . --output-format=github
+      
+      - name: Run Bandit Security Scan
+        run: bandit -r src/ scripts/ -x tests/
 
-      - name: Run Pytest
+      - name: Run Pytest with Coverage
         env:
           PYTHONPATH: src
-        run: pytest -m "not integration" -v
+        run: pytest -m "not integration" -v --cov=src --cov-report=term-missing
+      
+      - name: Validate Docker Build
+        run: |
+          docker build -t vpp-mcp-server:test .
 
   deploy-staging:
     name: Deploy to Staging

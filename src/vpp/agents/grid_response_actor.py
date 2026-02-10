@@ -3,7 +3,7 @@ import time
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-# InfluxDB Cloud Settings (update these with your actual cloud credentials)
+# InfluxDB Cloud Settings (Source from env for cloud readiness)
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
 INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
 INFLUX_ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
@@ -46,9 +46,9 @@ def run_simulator():
 
     try:
         while True:
-            # 1. Query the latest decision from the Consumer
+            # 1. Query the latest decision from the Consumer (Using 5m range for cloud robustness)
             query = f'from(bucket: "{INFLUX_BUCKET}") \
-                      |> range(start: -1m) \
+                      |> range(start: -5m) \
                       |> filter(fn: (r) => r["_measurement"] == "ml_predictions") \
                       |> last()'
             
@@ -92,6 +92,7 @@ def run_simulator():
                 .tag("asset_active", "NONE" if p_res == 0 else action)
             
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+            # log(f"DEBUG: Data written to InfluxDB Cloud") # Optional: uncomment for verbose logging
 
             if p_res > 0:
                 print(f"⚡ [ACTION] {action}: Injecting {p_res} MW. New Grid Level: {p_compensated:.2f}")

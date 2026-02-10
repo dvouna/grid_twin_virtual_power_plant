@@ -1,30 +1,29 @@
 import sys
 import os
 import json
-import xgboost as xgb
 from confluent_kafka import Consumer
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 # Add the 'src' directory to the Python path programmatically
 # This allows the script to find the 'vpp' package inside the 'src' folder
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-# Import the feature store class from its own file
-from vpp.core.GridFeatureStore import GridFeatureStore
+# Import the new Predictor class
+from vpp.core.VPPPredictor import VPPPredictor
 
 # --- 1. CONFIGURATION ---
-MODEL_PATH = "./models/xgboost_smart_ml.ubj"
+MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models', 'xgb_vpp_grid.json'))
 TOPIC_NAME = 'grid-sensor-stream'
 
 KAFKA_CONF = {
-    'bootstrap.servers': 'localhost:9092',
+    'bootstrap.servers': os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'),
     'group.id': 'ml-consumer-cloud-group',
     'auto.offset.reset': 'earliest',
     'broker.address.family': 'v4'
 }
 
-# InfluxDB Cloud Settings (update these with your actual cloud credentials)
+# InfluxDB Cloud Settings (Source from env for cloud readiness)
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
 INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
 INFLUX_ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
@@ -35,11 +34,11 @@ INFLUX_BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
 CRITICAL_DROP_THRESHOLD = -50  
 WARNING_DROP_THRESHOLD = -20
 
-# --- 2. LOAD MODEL ---
-model = xgb.XGBRegressor()
-model.load_model(MODEL_PATH)
+# --- 2. INITIALIZE PREDICTOR ---
+# This class now owns the Model, Feature Names, and Feature Store logic
+predictor = VPPPredictor(MODEL_PATH)
 
-# --- 1. PRESCRIPTIVE LOGIC ---
+# --- 3. PRESCRIPTIVE LOGIC ---
 def prescribe_action(ramp_rate):
     """
     Decides what to do based on the severity of the ramp event.
@@ -54,39 +53,6 @@ def prescribe_action(ramp_rate):
     else:
         return "NORMAL", "MONITORING"
 
-
-# Define your features in the exact order they were trained!
-# Note: Ensure these names match the columns in your training X_train.
-MY_FEATURES = [
-    'Hour', 'Day', 'Weekend', 'Month', 'Hist_Load', 'Elec_Load', 'Solar_kw', 'Wind_kw', 'RF_Error', 'C_Flag', 
-    'C_R_S', 'B_SOC', 'Temp', 'Humidity', 'S_Irr', 'Cloud', 'W_Speed', 'HPa', 'Net_Load', 'Hist_Ramp', 
-    'Hist_Load_lag_1', 'Hist_Load_lag_2', 'Hist_Load_lag_24', 'Hist_Load_lag_48', 'Elec_Load_lag_1', 
-    'Elec_Load_lag_2', 'Elec_Load_lag_24', 'Elec_Load_lag_48', 'Solar_kw_lag_1', 'Solar_kw_lag_2', 'Solar_kw_lag_24', 
-    'Solar_kw_lag_48', 'Wind_kw_lag_1', 'Wind_kw_lag_2', 'Wind_kw_lag_24', 'Wind_kw_lag_48', 'RF_Error_lag_1', 
-    'RF_Error_lag_2', 'RF_Error_lag_24', 'RF_Error_lag_48', 'C_Flag_lag_1', 'C_Flag_lag_2', 'C_Flag_lag_24', 
-    'C_Flag_lag_48', 'C_R_S_lag_1', 'C_R_S_lag_2', 'C_R_S_lag_24', 'C_R_S_lag_48', 'B_SOC_lag_1', 'B_SOC_lag_2', 
-    'B_SOC_lag_24', 'B_SOC_lag_48', 'Temp_lag_1', 'Temp_lag_2', 'Temp_lag_24', 'Temp_lag_48', 'Humidity_lag_1', 
-    'Humidity_lag_2', 'Humidity_lag_24', 'Humidity_lag_48', 'S_Irr_lag_1', 'S_Irr_lag_2', 'S_Irr_lag_24', 
-    'S_Irr_lag_48', 'Cloud_lag_1', 'Cloud_lag_2', 'Cloud_lag_24', 'Cloud_lag_48', 'W_Speed_lag_1', 'W_Speed_lag_2', 
-    'W_Speed_lag_24', 'W_Speed_lag_48', 'HPa_lag_1', 'HPa_lag_2', 'HPa_lag_24', 'HPa_lag_48', 'Net_Load_lag_1', 
-    'Net_Load_lag_2', 'Net_Load_lag_24', 'Net_Load_lag_48', 'Hist_Ramp_lag_1', 'Hist_Ramp_lag_2', 'Hist_Ramp_lag_24', 
-    'Hist_Ramp_lag_48', 'Hist_Load_rw_mean', 'Hist_Load_rw_std', 'Hist_Load_rw_min', 'Hist_Load_rw_max', 
-    'Elec_Load_rw_mean', 'Elec_Load_rw_std', 'Elec_Load_rw_min', 'Elec_Load_rw_max', 'Solar_kw_rw_mean', 
-    'Solar_kw_rw_std', 'Solar_kw_rw_min', 'Solar_kw_rw_max', 'Wind_kw_rw_mean', 'Wind_kw_rw_std', 'Wind_kw_rw_min', 
-    'Wind_kw_rw_max', 'RF_Error_rw_mean', 'RF_Error_rw_std', 'RF_Error_rw_min', 'RF_Error_rw_max', 'C_Flag_rw_mean', 
-    'C_Flag_rw_std', 'C_Flag_rw_min', 'C_Flag_rw_max', 'C_R_S_rw_mean', 'C_R_S_rw_std', 'C_R_S_rw_min', 'C_R_S_rw_max', 
-    'B_SOC_rw_mean', 'B_SOC_rw_std', 'B_SOC_rw_min', 'B_SOC_rw_max', 'Temp_rw_mean', 'Temp_rw_std', 'Temp_rw_min', 
-    'Temp_rw_max', 'Humidity_rw_mean', 'Humidity_rw_std', 'Humidity_rw_min', 'Humidity_rw_max', 'S_Irr_rw_mean', 
-    'S_Irr_rw_std', 'S_Irr_rw_min', 'S_Irr_rw_max', 'Cloud_rw_mean', 'Cloud_rw_std', 'Cloud_rw_min', 'Cloud_rw_max', 
-    'W_Speed_rw_mean', 'W_Speed_rw_std', 'W_Speed_rw_min', 'W_Speed_rw_max', 'HPa_rw_mean', 'HPa_rw_std', 
-    'HPa_rw_min', 'HPa_rw_max', 'Net_Load_rw_mean', 'Net_Load_rw_std', 'Net_Load_rw_min', 'Net_Load_rw_max', 
-    'Hist_Ramp_rw_mean', 'Hist_Ramp_rw_std', 'Hist_Ramp_rw_min', 'Hist_Ramp_rw_max', 'IsPeakHour', 'Temp_pkhr', 
-    'IsSummer', 'Temp_x_Sum', 'IsWinter', 'Temp_x_Win', 'hr_sin', 'hr_cos', 'wk_sin', 'wk_cos', 'mo_sin', 'mo_cos'
-]
-
-# Initialize Feature Store (window_size 49 supports lag 48)
-feature_store = GridFeatureStore(window_size=49, expected_columns=MY_FEATURES)
-
 def run_ml_consumer():
     # Initialize Clients
     consumer = Consumer(KAFKA_CONF)
@@ -95,12 +61,13 @@ def run_ml_consumer():
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
-    print(f"🚀 ML Consumer (CLOUD) started. Listening to {TOPIC_NAME}...")
+    print(f"🚀 ML Consumer (CLOUD) started with {MODEL_PATH}")
+    print(f"Listening to {TOPIC_NAME}...")
     print(f"📊 Writing to InfluxDB Cloud: {INFLUX_URL}")
 
     try:
         while True:
-            msg = consumer.poll(10.0) # Wait 5 seconds for a message 
+            msg = consumer.poll(10.0) # Wait 10 seconds for a message 
             if msg is None:
                 continue
             if msg.error():
@@ -109,26 +76,23 @@ def run_ml_consumer():
 
             # A. Parse Data
             payload = json.loads(msg.value().decode('utf-8'))
-            # Update history
-            feature_store.add_observation(payload)
             
-            # Extract key metrics for Renewable Energy   
-            solar = float(payload.get('Solar_kw', 0))
-            wind = float(payload.get('Wind_kw', 0))
-            elec_load = float(payload.get('Elec_Load', 0))
-            net_load = float(payload.get('Net_Load', 0)) 
-            ren_load = solar + wind  # Total Renewable in kW
-            
-            # B. Get Inference Vector
-            inference_df = feature_store.get_inference_vector()
+            # B. Add to State and Predict
+            predictor.add_observation(payload)
+            prediction_30min_change = predictor.predict()
             
             # C. Check if we have enough data (buffer is primed)
-            if inference_df is None:
-                print(f"⌛ Priming buffer... ({len(feature_store.buffer)}/{feature_store.buffer.maxlen})")
+            if prediction_30min_change is None:
+                cur, total = predictor.buffer_info
+                print(f"⌛ Priming buffer... ({cur}/{total})")
                 continue
             
-            # D. Inference
-            prediction_30min_change = model.predict(inference_df)[0]
+            # D. Metrics for Influx
+            solar = float(payload.get('Solar_kw', 0))
+            wind = float(payload.get('Wind_kw', 0))
+            net_load = float(payload.get('Net_Load', 0)) 
+            elec_load = float(payload.get('Elec_Load', 0))
+            ren_load = solar + wind
             
             # --- DECISION ENGINE ---
             severity, action = prescribe_action(prediction_30min_change)
@@ -145,17 +109,19 @@ def run_ml_consumer():
                 .tag("recommended_action", action)
             
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+            # log(f"DEBUG: Data written to InfluxDB Cloud") # Optional: uncomment for verbose logging
             
             if severity != "NORMAL":
                 print(f"{severity}: Predicted Change {prediction_30min_change:.2f} | Action: {action}")
             else:
-                print(f"Normal: Load {net_load} | Predicted Change {prediction_30min_change:.2f} kW")
+                print(f"Normal: Load {net_load} | Predicted {prediction_30min_change:.2f} kW")
 
     except Exception as e:
         print(f"Error in ML Consumer (Cloud): {e}")
     finally:
         consumer.close()
         influx_client.close()
+
 
 if __name__ == "__main__":
     run_ml_consumer()

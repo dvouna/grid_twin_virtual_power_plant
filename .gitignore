@@ -84,18 +84,51 @@ cover/
 *.sublime-project
 
 # Jupyter Notebooks
+*.ipynb
 .ipynb_checkpoints
 */.ipynb_checkpoints/* 
 
-# local files
+# local files & research
+consumer_prescriptive.py
 consumer_ml_local.py
 arbitrage_trader_local.py
 grid_response_local.py 
-
-# Temporary Scripts
-reproduce_bug.py
+verify_vpp_predictor.py
+diagnose_xgb.py
+mock_consumer.py
 check_alignment.py
+reproduce_bug.py
+GridFeature.txt
+clean_features*.txt
+features_ml.txt
+*.ipynb
 
-# Agent State
+# Models & Data (Keep production models, ignore research/temp)
+models/*.json
+models/*.ubj
+!models/xgboost_smart_ml.ubj
+models/test_scenarios.json
+
+# Diagnostic Outputs & Mocks
+diag_output*.txt
+mock_output*.txt
+verify_output*.txt
+bandit_report.json
+model_features_list*
+model_features_repr.txt
+model_features_utf8.txt
+integration_test_debug*.log
+test_output*.log
+build_log.txt
+ruff_errors.txt
+
+# Secrets & Config
+key.json
+claude_desktop_config.json
+mcp_client_config_reference.json
+cloudbuild.yaml.deprecated
+
+# Agent State & Workspace
 .agent/
 .gemini/
+.venv_backup/
