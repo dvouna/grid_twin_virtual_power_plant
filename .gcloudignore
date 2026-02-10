@@ -1,27 +1,58 @@
-# System & IDE
-.git/
+# Git
+.git
 .gitignore
-.vscode/
-.idea/
+
+# Python
 __pycache__/
 *.pyc
-*.swp
-*.log
-
-# Environment
+*.pyo
+*.pyd
+.Python
+env/
 venv/
 .venv/
-.venv_backup/
-env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDES
+.vscode/
+.idea/
+
+# CI/CD
+.github/
+.agent/
+cloudbuild.yaml
+cloudbuild.yaml.deprecated
+.bandit
+
+# User-specific
+.env
+
+# Tests
+tests/
+pytest.ini
+coverage.xml
+.coverage
+
+# Documentation
+docs/
+README.md
+
+# Large files / Data
+*.csv
+*.tsv
+*.sql
+*.sqlite
 data/
+notebooks/
 
-# Local Dev & Testing Artifacts
-docker-compose*.yml
-test_output*.log
-integration_test_debug*.log
-.pytest_cache/
-.ruff_cache/
+# Models - Explicitly include ONLY needed files
+models/
+!models/xgboost_smart_ml.ubj
+!models/model_features.txt
 
-# FORCE INCLUDE MODELS
-!models/
-!models/**
+# Diagnostic Outputs & Mocks
+diag_output*.txt
+mock_test_results.json
+verify_output*.txt
+bandit_report.json

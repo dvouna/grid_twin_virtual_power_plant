@@ -1,12 +1,12 @@
 confluent-kafka
-fastmcp
+fastmcp<3.0
 influxdb-client
 mcp
-numpy
+numpy<2.0
 pandas
 python-dotenv
 scikit-learn
-xgboost
+xgboost>=2.0.0
 ruff
 bandit
 pytest
@@ -14,3 +14,4 @@ pytest-cov
 pytest-mock
 pytest-asyncio
 setuptools<81
+starlette
