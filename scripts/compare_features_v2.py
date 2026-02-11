@@ -8,7 +8,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from vpp.core.GridFeatureStore import GridFeatureStore
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'xgboost_smart_ml.ubj')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'xgb_vpp_grid.json')
 
 def run_comparison():
     # 1. Load Model Features

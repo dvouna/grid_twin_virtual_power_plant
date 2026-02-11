@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app/src \
     PORT=8080 \
-    MODEL_PATH=models/xgboost_smart_ml.ubj \
+    MODEL_PATH=models/xgb_vpp_grid.json \
     FEATURES_PATH=models/model_features.txt
 
 WORKDIR /app

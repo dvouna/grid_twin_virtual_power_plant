@@ -70,7 +70,7 @@ jobs:
         run: |
           echo "Checking for model files..."
           ls -R models/
-          if [ ! -f "models/xgboost_smart_ml.ubj" ]; then
+          if [ ! -f "models/xgb_vpp_grid.json" ]; then
             echo "❌ CRITICAL: Model file missing in build context!"
             exit 1
           fi
@@ -138,7 +138,7 @@ jobs:
         run: |
           echo "Checking for model files..."
           ls -R models/
-          if [ ! -f "models/xgboost_smart_ml.ubj" ]; then
+          if [ ! -f "models/xgb_vpp_grid.json" ]; then
             echo "❌ CRITICAL: Model file missing in build context!"
             exit 1
           fi

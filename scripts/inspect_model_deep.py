@@ -1,12 +1,12 @@
 """
-Deep inspection of xgboost_smart_ml.ubj to understand feature name handling.
+Deep inspection of xgb_vpp_grid.json to understand feature name handling.
 """
 import os
 import numpy as np
 import pandas as pd
 import xgboost as xgb
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'xgboost_smart_ml.ubj')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'xgb_vpp_grid.json')
 
 print("=== Deep Model Inspection ===")
 print(f"XGBoost version: {xgb.__version__}")

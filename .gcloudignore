@@ -47,8 +47,8 @@ data/
 notebooks/
 
 # Models - Explicitly include ONLY needed files
-models/
-!models/xgboost_smart_ml.ubj
+models/*
+!models/xgb_vpp_grid.json
 !models/model_features.txt
 
 # Diagnostic Outputs & Mocks

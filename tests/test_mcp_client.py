@@ -53,7 +53,7 @@ class MCPServerTester:
 
     def __init__(self):
         self.model = None
-        self.model_path = "models/xgboost_smart_ml.ubj"
+        self.model_path = "models/xgb_vpp_grid.json"
         self.results = []
 
     def load_model(self):

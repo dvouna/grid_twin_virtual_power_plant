@@ -46,7 +46,7 @@ BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
 # dirname 3: /app/src
 # dirname 4: /app
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "xgboost_smart_ml.ubj")
+MODEL_PATH = os.path.join(BASE_DIR, "models", "xgb_vpp_grid.json")
 FEATURES_PATH = os.path.join(BASE_DIR, "models", "model_features.txt")
 
 log(f"Calculated BASE_DIR: {BASE_DIR}")

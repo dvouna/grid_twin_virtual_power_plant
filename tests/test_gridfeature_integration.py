@@ -106,7 +106,7 @@ def test_gridfeaturestore_integration():
     print("\n[5/5] Testing model prediction...")
     try:
         model = xgb.Booster()
-        model.load_model("models/xgboost_smart_ml.ubj")
+        model.load_model("models/xgb_vpp_grid.json")
         print("✓ Model loaded successfully")
 
         # Make prediction
@@ -128,7 +128,7 @@ def test_gridfeaturestore_integration():
             print("  - Severity: ✓ STABLE")
 
     except FileNotFoundError:
-        print("⚠ Model file not found (xgboost_smart_ml.ubj)")
+        print("⚠ Model file not found (xgb_vpp_grid.json)")
         print("  Skipping actual prediction, but feature engineering works!")
     except Exception as e:
         print(f"❌ Error during prediction: {e}")

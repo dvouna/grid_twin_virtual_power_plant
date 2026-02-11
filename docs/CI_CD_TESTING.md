@@ -73,4 +73,4 @@ Cloud Build handles the deployment to Google Cloud Run:
 
 - **InfluxDB Connection Errors**: Ensure the container is running and healthy: `docker ps`.
 - **Module Not Found**: Ensure `PYTHONPATH` includes `src`. This is handled automatically by `pytest.ini`.
-- **Missing Model Files**: Ensure `xgboost_smart_ml.ubj` and `model_features.txt` are in the project root or specified in environment variables.
+- **Missing Model Files**: Ensure `xgb_vpp_grid.json` and `model_features.txt` are in the project root or specified in environment variables.

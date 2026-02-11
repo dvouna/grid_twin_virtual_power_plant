@@ -14,7 +14,7 @@ server_params = StdioServerParameters(
         **os.environ,
         "PYTHONPATH": "src",
         "MCP_TRANSPORT": "stdio",
-        "MODEL_PATH": "models/xgboost_smart_ml.ubj",
+        "MODEL_PATH": "models/xgb_vpp_grid.json",
         "FEATURES_PATH": "models/model_features.txt",
         "INFLUX_URL": os.getenv("TEST_INFLUX_URL", "http://localhost:8086"),
         "INFLUX_TOKEN": os.getenv("TEST_INFLUX_TOKEN", "smg!indb25"),
@@ -72,7 +72,7 @@ async def test_mcp_server_full_cycle(mocker):
     # This means mocking in THIS process won't affect the subprocess.
 
     # SOLUTION: Skip this heavy integration test in CI if models are missing
-    if not os.path.exists("models/xgboost_smart_ml.ubj"):
+    if not os.path.exists("models/xgb_vpp_grid.json"):
         pytest.skip("Skipping integration test: Model file not found in build context")
 
 @pytest.mark.asyncio
