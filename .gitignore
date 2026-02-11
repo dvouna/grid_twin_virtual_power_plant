@@ -106,7 +106,7 @@ features_ml.txt
 # Models & Data (Keep production models, ignore research/temp)
 models/*.json
 models/*.ubj
-!models/xgboost_smart_ml.ubj
+!models/xgb_vpp_grid.json
 models/test_scenarios.json
 
 # Diagnostic Outputs & Mocks
