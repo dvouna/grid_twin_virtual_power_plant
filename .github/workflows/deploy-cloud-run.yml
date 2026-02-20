@@ -89,9 +89,49 @@ jobs:
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
             INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
-            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET_STAGING:latest
           env_vars: |-
             MCP_TRANSPORT=sse
+
+      - name: Deploy Consumer ML Job (Staging)
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          job: consumer-ml-stage
+          region: ${{ env.REGION }}
+          source: .
+          flags: --command=python --args=scripts/consumer_ml.py
+          secrets: |-
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET_STAGING:latest
+            KAFKA_BOOTSTRAP_SERVERS=KAFKA_BOOTSTRAP_SERVERS:latest
+
+      - name: Deploy Arbitrage Trader Job (Staging)
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          job: arbitrage-trader-stage
+          region: ${{ env.REGION }}
+          source: .
+          flags: --command=python --args=-m,vpp.agents.arbitrage_trader
+          secrets: |-
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET_STAGING:latest
+
+      - name: Deploy Grid Response Actor Job (Staging)
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          job: grid-response-stage
+          region: ${{ env.REGION }}
+          source: .
+          flags: --command=python --args=-m,vpp.agents.grid_response_actor
+          secrets: |-
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET_STAGING:latest
 
       - name: Run Staging Health Check
         run: |
@@ -160,6 +200,46 @@ jobs:
             INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
           env_vars: |-
             MCP_TRANSPORT=sse
+
+      - name: Deploy Consumer ML Job (Production)
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          job: consumer-ml-prod
+          region: ${{ env.REGION }}
+          source: .
+          flags: --command=python --args=scripts/consumer_ml.py
+          secrets: |-
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
+            KAFKA_BOOTSTRAP_SERVERS=KAFKA_BOOTSTRAP_SERVERS:latest
+
+      - name: Deploy Arbitrage Trader Job (Production)
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          job: arbitrage-trader-prod
+          region: ${{ env.REGION }}
+          source: .
+          flags: --command=python --args=-m,vpp.agents.arbitrage_trader
+          secrets: |-
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
+
+      - name: Deploy Grid Response Actor Job (Production)
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          job: grid-response-prod
+          region: ${{ env.REGION }}
+          source: .
+          flags: --command=python --args=-m,vpp.agents.grid_response_actor
+          secrets: |-
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
 
       - name: Production Deployment Complete
         run: |

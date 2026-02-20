@@ -50,6 +50,28 @@ class VPPPredictor:
 
         return float(prediction)
 
+    def predict_curve(self, current_net_load_kw: float, steps: int = 4) -> list[float]:
+        """
+        Generates a simulated multi-step predicted load curve.
+        Since the core model predicts a single 30-min change, this method 
+        extrapolates that change across `steps` intervals to provide 
+        the trajectory needed for BAM Agent pre-conditioning.
+        
+        Args:
+            current_net_load_kw: The current known grid net load in kW.
+            steps: The number of intervals to extrapolate the curve over.
+            
+        Returns:
+            A list of forecasted net load values (kW).
+        """
+        prediction_change = self.predict()
+        if prediction_change is None:
+            return []
+            
+        step_change = prediction_change / steps
+        curve = [current_net_load_kw + (step_change * i) for i in range(1, steps + 1)]
+        return curve
+
     @property
     def buffer_info(self):
         """Returns current buffer state."""
