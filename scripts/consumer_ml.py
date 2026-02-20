@@ -3,8 +3,12 @@ import os
 import sys
 
 from confluent_kafka import Consumer
+from dotenv import load_dotenv
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the 'src' directory to the Python path programmatically
 # This allows the script to find the 'vpp' package inside the 'src' folder
@@ -62,9 +66,9 @@ def run_ml_consumer():
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
-    print(f"🚀 ML Consumer (CLOUD) started with {MODEL_PATH}")
+    print(f"ML Consumer (CLOUD) started with {MODEL_PATH}")
     print(f"Listening to {TOPIC_NAME}...")
-    print(f"📊 Writing to InfluxDB Cloud: {INFLUX_URL}")
+    print(f"Writing to InfluxDB Cloud: {INFLUX_URL}")
 
     try:
         while True:
@@ -85,7 +89,7 @@ def run_ml_consumer():
             # C. Check if we have enough data (buffer is primed)
             if prediction_30min_change is None:
                 cur, total = predictor.buffer_info
-                print(f"⌛ Priming buffer... ({cur}/{total})")
+                print(f"Priming buffer... ({cur}/{total})")
                 continue
 
             # D. Metrics for Influx

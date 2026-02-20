@@ -34,10 +34,18 @@ def sigterm_handler(_signo, _stack_frame):
 signal.signal(signal.SIGTERM, sigterm_handler)
 
 # Environment Variables for Cloud Run
-INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
-INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
-ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
-BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
+# Environment Variables for Cloud Run
+INFLUX_URL = os.getenv("INFLUX_CLOUD_URL")
+INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN")
+ORG = os.getenv("INFLUX_CLOUD_ORG")
+BUCKET = os.getenv("INFLUX_CLOUD_BUCKET")
+
+# Validate critical configuration
+if not all([INFLUX_URL, INFLUX_TOKEN, ORG, BUCKET]):
+    log("❌ CRITICAL: Missing InfluxDB configuration environment variables.")
+    # We don't exit here to allow the process to start and potentially become healthy if env vars are injected later,
+    # but the health check should ideally reflect this. For now, we log the error.
+
 
 # File Paths (Absolute hooks)
 # __file__ is /app/src/vpp/mcp/mcp_server.py

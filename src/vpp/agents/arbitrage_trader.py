@@ -1,8 +1,12 @@
 import os
 import time
 
+from dotenv import load_dotenv
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+
+# Load environment variables from .env file
+load_dotenv()
 
 # InfluxDB Cloud Settings (Source from env for cloud readiness)
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
@@ -21,7 +25,7 @@ def run_arbitrage_trader():
     query_api = client.query_api()
     write_api = client.write_api(write_options=SYNCHRONOUS)
 
-    print("💰 Arbitrage Trader is active. Optimization engine running...")
+    print("Arbitrage Trader is active. Optimization engine running...")
 
     try:
         while True:
@@ -73,7 +77,7 @@ def run_arbitrage_trader():
             # log(f"DEBUG: Data written to InfluxDB Cloud") # Optional: uncomment for verbose logging
 
             if trade_action != "HOLD":
-                print(f"📉 [TRADE] {trade_action} {trade_volume_kw }kW | SoC: {current_soc_kWH:.2f}kWh")
+                print(f"[TRADE] {trade_action} {trade_volume_kw }kW | SoC: {current_soc_kWH:.2f}kWh")
 
             time.sleep(10) # Run trading cycle every 5 seconds
 

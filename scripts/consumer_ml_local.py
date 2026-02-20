@@ -6,6 +6,10 @@ import xgboost as xgb
 from confluent_kafka import Consumer
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the 'src' directory to the Python path programmatically
 # This allows the script to find the 'vpp' package inside the 'src' folder
@@ -26,10 +30,13 @@ KAFKA_CONF = {
 }
 
 # InfluxDB Settings
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "smg!indb25"
-INFLUX_ORG = "myorg"
-INFLUX_BUCKET = "energy"
+INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+INFLUX_ORG = os.getenv("INFLUX_ORG", "myorg")
+INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "energy")
+
+if not INFLUX_TOKEN:
+    raise ValueError("INFLUX_TOKEN not found in environment variables. Please set it in .env or your environment.")
 # Ramp Rate Thresholds (MW/min)
 # If power drops faster than this, we trigger an alarm.
 CRITICAL_DROP_THRESHOLD = -50  

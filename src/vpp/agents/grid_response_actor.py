@@ -1,8 +1,12 @@
 import os
 import time
 
+from dotenv import load_dotenv
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+
+# Load environment variables from .env file
+load_dotenv()
 
 # InfluxDB Cloud Settings (Source from env for cloud readiness)
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
@@ -96,7 +100,7 @@ def run_simulator():
             # log(f"DEBUG: Data written to InfluxDB Cloud") # Optional: uncomment for verbose logging
 
             if p_res > 0:
-                print(f"⚡ [ACTION] {action}: Injecting {p_res} MW. New Grid Level: {p_compensated:.2f}")
+                print(f"[ACTION] {action}: Injecting {p_res} MW. New Grid Level: {p_compensated:.2f}")
 
             time.sleep(10) # Check every second
 
