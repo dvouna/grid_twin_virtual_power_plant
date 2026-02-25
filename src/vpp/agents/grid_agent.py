@@ -36,7 +36,7 @@ class GridAgent:
                     await session.initialize()
 
                     print("="*50)
-                    print("🤖 GRID AGENT ONLINE")
+                    print("GRID AGENT ONLINE")
                     print("="*50)
                     print(f"Connected to MCP Server: {self.server_params.args[0]}")
 
@@ -45,7 +45,7 @@ class GridAgent:
                         # Sleep for simulation interval
                         await asyncio.sleep(20)
         except Exception as e:
-            print(f"❌ Agent Crash: {e}")
+            print(f"Agent Crash: {e}")
             import traceback
             traceback.print_exc()
 

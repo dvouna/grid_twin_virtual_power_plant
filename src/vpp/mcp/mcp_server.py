@@ -34,7 +34,6 @@ def sigterm_handler(_signo, _stack_frame):
 signal.signal(signal.SIGTERM, sigterm_handler)
 
 # Environment Variables for Cloud Run
-# Environment Variables for Cloud Run
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN")
 ORG = os.getenv("INFLUX_CLOUD_ORG")
@@ -42,7 +41,7 @@ BUCKET = os.getenv("INFLUX_CLOUD_BUCKET")
 
 # Validate critical configuration
 if not all([INFLUX_URL, INFLUX_TOKEN, ORG, BUCKET]):
-    log("❌ CRITICAL: Missing InfluxDB configuration environment variables.")
+    log("CRITICAL: Missing InfluxDB configuration environment variables.")
     # We don't exit here to allow the process to start and potentially become healthy if env vars are injected later,
     # but the health check should ideally reflect this. For now, we log the error.
 
@@ -72,12 +71,12 @@ if os.path.exists(abs_model_path):
     try:
         model = xgb.Booster()
         model.load_model(abs_model_path)
-        log(f"✓ Model successfully loaded from {abs_model_path}")
+        log(f"Model successfully loaded from {abs_model_path}")
     except Exception as e:
-        log(f"❌ Error loading model: {e}")
+        log(f"Error loading model: {e}")
         model = None
 else:
-    log(f"⚠ Warning: Model file NOT FOUND at {abs_model_path}")
+    log(f"Warning: Model file NOT FOUND at {abs_model_path}")
 
 # Load expected feature columns from model training
 expected_features = None
@@ -89,11 +88,11 @@ if os.path.exists(abs_features_path):
         # Using utf-8-sig to automatically handle potential Byte Order Mark (BOM)
         with open(abs_features_path, "r", encoding='utf-8-sig') as f:
             expected_features = [line.strip() for line in f if line.strip()]
-        log(f"✓ Loaded {len(expected_features)} expected features from {abs_features_path}")
+        log(f"Loaded {len(expected_features)} expected features from {abs_features_path}")
     except Exception as e:
-        log(f"❌ Error loading features: {e}")
+        log(f"Error loading features: {e}")
 else:
-    log(f"⚠ Warning: Features file NOT FOUND at {abs_features_path}")
+    log(f"Warning: Features file NOT FOUND at {abs_features_path}")
 
 # Initialize GridFeatureStore for feature engineering
 feature_store = GridFeatureStore(window_size=49, expected_columns=expected_features)
@@ -234,22 +233,22 @@ def predict_grid_ramp() -> str:
     magnitude = abs(prediction)
 
     # Add context and recommendations
-    result = f"🔮 Predicted Ramp: {prediction:.2f} kW {direction}\n\n"
+    result = f"Predicted Ramp: {prediction:.2f} kW {direction}\n\n"
 
     if magnitude > 10000:  # 10 MW threshold
-        result += "⚠️ CRITICAL: Large ramp predicted! Recommend immediate battery action.\n"
+        result += "CRITICAL: Large ramp predicted! Recommend immediate battery action.\n"
         if prediction > 0:
             result += "   → Prepare battery discharge to meet rising demand."
         else:
             result += "   → Prepare battery charging with excess generation."
     elif magnitude > 5000:  # 5 MW threshold
-        result += "⚡ MODERATE: Significant ramp detected. Monitor closely.\n"
+        result += "MODERATE: Significant ramp detected. Monitor closely.\n"
         if prediction > 0:
             result += "   → Consider battery support for load increase."
         else:
             result += "   → Potential arbitrage opportunity on load decrease."
     else:
-        result += "✓ STABLE: Minor fluctuation predicted. No immediate action required."
+        result += "STABLE: Minor fluctuation predicted. No immediate action required."
 
     return result
 
@@ -268,7 +267,7 @@ def get_feature_store_status() -> str:
 
     status = "Feature Store Status:\n"
     status += f"  Buffer Size: {buffer_size}/49\n"
-    status += f"  Is Primed: {'✓ YES' if is_ready else '✗ NO'}\n"
+    status += f"  Is Primed: {'YES' if is_ready else 'NO'}\n"
 
     if not is_ready:
         status += f"  Observations Needed: {49 - buffer_size}\n"
@@ -308,7 +307,7 @@ if __name__ == "__main__":
 
     if transport == "sse":
         host = os.getenv("HOST", "0.0.0.0")  # nosec B104
-        log(f"🚀 Starting MCP Server on port {port} on {host} via SSE...")
+        log(f"Starting MCP Server on port {port} on {host} via SSE...")
         mcp.run(transport="sse", host=host, port=port)
     else:
         # Standard input/output for local Claude Desktop use
