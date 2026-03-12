@@ -180,3 +180,113 @@ jobs:
           echo "### Infrastructure Links" >> $GITHUB_STEP_SUMMARY
           echo "- [Cloud Run Service Logs](https://console.cloud.google.com/run/detail/${{ env.REGION }}/vpp-mcp-server/logs?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
           echo "- [Redpanda Connect VM](https://console.cloud.google.com/compute/instancesDetail/zones/${{ env.REDPANDA_VM_ZONE }}/instances/${{ env.REDPANDA_VM_NAME }}?project=${{ env.GCP_PROJECT_ID }})" >> $GITHUB_STEP_SUMMARY
+
+  # ── Dashboard: Streamlit + Gemini + MCP Client ──────────────────────────────
+  deploy-dashboard-staging:
+    name: Deploy Dashboard to Staging
+    needs: test
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    environment: staging
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
+          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+
+      - name: Deploy Dashboard to Cloud Run (Staging)
+        id: deploy-dash-stage
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: vpp-dashboard-stage
+          region: ${{ env.REGION }}
+          source: .
+          build_pack: dockerfile
+          timeout: '300s'
+          flags: >-
+            --dockerfile=Dockerfile.dashboard
+            --memory=512Mi
+            --cpu=1
+            --concurrency=20
+            --max-instances=5
+            --timeout=120s
+            --no-allow-unauthenticated
+          secrets: |-
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+          env_vars: |-
+            MCP_SERVER_URL=https://vpp-mcp-server-stage-${{ env.REGION }}.run.app
+            GEMINI_MODEL=gemini-1.5-flash
+            MCP_TOOL_CALL_LIMIT=10
+
+      - name: Create Dashboard Staging Summary
+        if: success()
+        run: |
+          echo "## Dashboard Staging Deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Dashboard URL** | ${{ steps.deploy-dash-stage.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **MCP Backend** | vpp-mcp-server-stage |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Gemini Model** | gemini-1.5-flash |" >> $GITHUB_STEP_SUMMARY
+
+  deploy-dashboard-production:
+    name: Deploy Dashboard to Production
+    needs: [test, deploy-production, deploy-dashboard-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
+          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+
+      - name: Deploy Dashboard to Cloud Run (Production)
+        id: deploy-dash-prod
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: vpp-dashboard
+          region: ${{ env.REGION }}
+          source: .
+          build_pack: dockerfile
+          timeout: '300s'
+          flags: >-
+            --dockerfile=Dockerfile.dashboard
+            --memory=512Mi
+            --cpu=1
+            --concurrency=20
+            --min-instances=1
+            --max-instances=10
+            --timeout=120s
+            --no-allow-unauthenticated
+          secrets: |-
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+          env_vars: |-
+            MCP_SERVER_URL=https://vpp-mcp-server-${{ env.REGION }}.run.app
+            GEMINI_MODEL=gemini-1.5-flash
+            MCP_TOOL_CALL_LIMIT=10
+
+      - name: Create Dashboard Production Summary
+        if: success()
+        run: |
+          echo "## Dashboard Production Deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Dashboard URL** | ${{ steps.deploy-dash-prod.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **MCP Backend** | vpp-mcp-server (production) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Audit Logs** | [Cloud Logging](https://console.cloud.google.com/logs/query;query=logName%3D%22projects%2F${{ env.GCP_PROJECT_ID }}%2Flogs%2Fvpp-copilot-audit%22?project=${{ env.GCP_PROJECT_ID }}) |" >> $GITHUB_STEP_SUMMARY
