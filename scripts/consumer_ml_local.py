@@ -6,6 +6,10 @@ import xgboost as xgb
 from confluent_kafka import Consumer
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the 'src' directory to the Python path programmatically
 # This allows the script to find the 'vpp' package inside the 'src' folder
@@ -26,10 +30,13 @@ KAFKA_CONF = {
 }
 
 # InfluxDB Settings
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "smg!indb25"
-INFLUX_ORG = "myorg"
-INFLUX_BUCKET = "energy"
+INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+INFLUX_ORG = os.getenv("INFLUX_ORG", "myorg")
+INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "energy")
+
+if not INFLUX_TOKEN:
+    raise ValueError("INFLUX_TOKEN not found in environment variables. Please set it in .env or your environment.")
 # Ramp Rate Thresholds (MW/min)
 # If power drops faster than this, we trigger an alarm.
 CRITICAL_DROP_THRESHOLD = -50  
@@ -76,21 +83,24 @@ def run_ml_consumer():
 
             # A. Parse Data
             payload = json.loads(msg.value().decode('utf-8'))
+            net_load = float(payload.get('Net_Load', 0)) 
             
             # B. Add to State and Predict
             predictor.add_observation(payload)
-            prediction_30min_change = predictor.predict()
+            prediction_curve = predictor.predict_curve(current_net_load_kw=net_load, steps=4)
             
             # C. Check if we have enough data (buffer is primed)
-            if prediction_30min_change is None:
+            if not prediction_curve:
                 cur, total = predictor.buffer_info
                 print(f"⌛ Priming buffer... ({cur}/{total})")
                 continue
             
+            # The final point in the curve is the 30-min prediction (extrapolated or directly from predict())
+            prediction_30min_change = prediction_curve[-1] - net_load
+            
             # D. Metrics for Influx
             solar = float(payload.get('Solar_kw', 0))
             wind = float(payload.get('Wind_kw', 0))
-            net_load = float(payload.get('Net_Load', 0)) 
             elec_load = float(payload.get('Elec_Load', 0))
             ren_load = solar + wind
             
@@ -104,7 +114,8 @@ def run_ml_consumer():
                 .field("Electricity_Load_kW", elec_load) \
                 .field("Renewable_Load_kW", ren_load) \
                 .field("Net_Load_kW", net_load) \
-                .field("Predicted_30min_Change", prediction_30min_change) \
+                .field("Predicted_30min_Change", float(prediction_30min_change)) \
+                .field("Predicted_Curve_JSON", json.dumps(prediction_curve)) \
                 .tag("severity", severity) \
                 .tag("recommended_action", action)
             

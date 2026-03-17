@@ -3,8 +3,12 @@ import os
 import sys
 
 from confluent_kafka import Consumer
+from dotenv import load_dotenv
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the 'src' directory to the Python path programmatically
 # This allows the script to find the 'vpp' package inside the 'src' folder
@@ -62,9 +66,9 @@ def run_ml_consumer():
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
-    print(f"🚀 ML Consumer (CLOUD) started with {MODEL_PATH}")
+    print(f"ML Consumer (CLOUD) started with {MODEL_PATH}")
     print(f"Listening to {TOPIC_NAME}...")
-    print(f"📊 Writing to InfluxDB Cloud: {INFLUX_URL}")
+    print(f"Writing to InfluxDB Cloud: {INFLUX_URL}")
 
     try:
         while True:
@@ -77,21 +81,24 @@ def run_ml_consumer():
 
             # A. Parse Data
             payload = json.loads(msg.value().decode('utf-8'))
+            net_load = float(payload.get('Net_Load', 0))
 
             # B. Add to State and Predict
             predictor.add_observation(payload)
-            prediction_30min_change = predictor.predict()
+            prediction_curve = predictor.predict_curve(current_net_load_kw=net_load, steps=4)
 
             # C. Check if we have enough data (buffer is primed)
-            if prediction_30min_change is None:
+            if not prediction_curve:
                 cur, total = predictor.buffer_info
-                print(f"⌛ Priming buffer... ({cur}/{total})")
+                print(f"Priming buffer... ({cur}/{total})")
                 continue
+
+            # The final point in the curve is the 30-min prediction (extrapolated or directly from predict())
+            prediction_30min_change = prediction_curve[-1] - net_load
 
             # D. Metrics for Influx
             solar = float(payload.get('Solar_kw', 0))
             wind = float(payload.get('Wind_kw', 0))
-            net_load = float(payload.get('Net_Load', 0))
             elec_load = float(payload.get('Elec_Load', 0))
             ren_load = solar + wind
 
@@ -105,7 +112,8 @@ def run_ml_consumer():
                 .field("Electricity_Load_kW", elec_load) \
                 .field("Renewable_Load_kW", ren_load) \
                 .field("Net_Load_kW", net_load) \
-                .field("Predicted_30min_Change", prediction_30min_change) \
+                .field("Predicted_30min_Change", float(prediction_30min_change)) \
+                .field("Predicted_Curve_JSON", json.dumps(prediction_curve)) \
                 .tag("severity", severity) \
                 .tag("recommended_action", action)
 

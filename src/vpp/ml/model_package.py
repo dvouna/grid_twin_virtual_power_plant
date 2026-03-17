@@ -56,7 +56,7 @@ def package_xgboost_model(model, model_name, random_search_results=None, additio
     with open(metadata_filename, "w") as f:
         json.dump(package_details, f, indent=4)
 
-    print("--- Model Packaging Complete ---")
+    print("Model Packaging Complete")
     print(f"Model saved to:    {model_name}.json")
     print(f"Metadata saved to: {metadata_filename}")
 
