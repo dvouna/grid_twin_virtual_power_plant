@@ -4,12 +4,12 @@ import time
 import pandas as pd
 from confluent_kafka import Producer
 
-# --- CONFIGURATION ---
+# CONFIGURATION
 TOPIC_NAME = "grid-sensor-stream"
 KAFKA_CONF = {'bootstrap.servers': 'localhost:9092'}
 CSV_FILE_PATH = "./data/smart_grid_data.csv"
 
-# --- KAFKA HELPERS ---
+# KAFKA HELPERS
 def delivery_report(err, msg):
     if err is not None:
         print(f" Delivery failed: {err}")
@@ -28,7 +28,7 @@ def run_producer():
         print(f"Error: {CSV_FILE_PATH} not found.")
         return
 
-    print(f"🚀 Starting 30s Stream. Total records: {len(df)}")
+    print(f"Starting 30s Stream. Total records: {len(df)}")
 
     while True: # Loop the dataset for continuous simulation
         for _index, row in df.iterrows():

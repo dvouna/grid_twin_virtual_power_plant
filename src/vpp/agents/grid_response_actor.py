@@ -1,14 +1,22 @@
 import os
 import time
+import logging
 
 from dotenv import load_dotenv
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
-
-from vpp.agents.battery_manager import BatteryManagementAgent
+import requests
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 # Load environment variables from .env file
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # InfluxDB Cloud Settings (Source from env for cloud readiness)
 INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
@@ -19,7 +27,37 @@ INFLUX_BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
 # Simulated asset capacities (kW)
 GAS_PEAKER_CAPACITY_kW = 100000.0  # 100 MW
 BATTERY_DISCHARGE_RATE_kW = 40000.0 # 40 MW
-MAX_CAPACITY_kWH = 100000.0  
+BAM_API_URL = os.getenv("BAM_API_URL", "http://localhost:8000")
+BAM_API_KEY = os.getenv("BAM_API_KEY", "")
+_BAM_HEADERS = {"X-BAM-API-Key": BAM_API_KEY} if BAM_API_KEY else {}
+
+# --- Resilient BAM API helpers (Phase B) ---
+_RETRY_POLICY = dict(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=4),
+    retry=retry_if_exception_type((requests.exceptions.ConnectionError,
+                                   requests.exceptions.Timeout)),
+    reraise=False,
+)
+
+@retry(**_RETRY_POLICY)
+def _bam_dispatch(payload: dict) -> dict:
+    resp = requests.post(f"{BAM_API_URL}/dispatch", json=payload, headers=_BAM_HEADERS, timeout=5)
+    resp.raise_for_status()
+    return resp.json()
+
+@retry(**_RETRY_POLICY)
+def _bam_get_state() -> dict:
+    resp = requests.get(f"{BAM_API_URL}/state", headers=_BAM_HEADERS, timeout=5)
+    resp.raise_for_status()
+    return resp.json()
+
+@retry(**_RETRY_POLICY)
+def _bam_pre_condition(payload: dict) -> dict:
+    """C1: Triggers proactive battery charging via the BAM service."""
+    resp = requests.post(f"{BAM_API_URL}/pre_condition", json=payload, headers=_BAM_HEADERS, timeout=5)
+    resp.raise_for_status()
+    return resp.json()
 
 # --- NEW FINANCIAL CONSTANTS ---
 # Prices are usually per MWh, so we convert to kWh pricing
@@ -47,15 +85,6 @@ def calculate_finances(ramp_rate_kw, p_res_kw, action):
     return potential_penalty, mitigation_cost, net_savings
 
 def run_simulator():
-    # Initialize the BAM Gatekeeper
-    bam_agent = BatteryManagementAgent(
-        capacity_kwh=MAX_CAPACITY_kWH,
-        max_c_rate=1.0, 
-        base_wear_cost_per_kwh=0.015
-    )
-    # Set starting SoC to 50%
-    bam_agent.current_soc_kwh = MAX_CAPACITY_kWH * 0.50
-
     client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     query_api = client.query_api()
     write_api = client.write_api(write_options=SYNCHRONOUS)
@@ -77,7 +106,6 @@ def run_simulator():
             for table in tables:
                 for record in table.records:
                     current_data[record.get_field()] = record.get_value()
-                    # Also get tags
                     if "recommended_action" in record.values:
                         current_data["action"] = record.values["recommended_action"]
 
@@ -87,8 +115,25 @@ def run_simulator():
 
             action = current_data.get("action", "MONITORING")
             actual_power_kw = current_data.get("Net_Load_kW", 0)
-            # Assuming predicted_change is in kW due to feature store standardisation
             predicted_change_kw = current_data.get("Predicted_30min_Change", 0)
+
+            # Extract predicted curve (same field used by the Arbitrage Trader)
+            import json as _json
+            predicted_curve_json = current_data.get("Predicted_Curve_JSON")
+            predicted_curve = _json.loads(predicted_curve_json) if predicted_curve_json else []
+
+            # C1: Run AI Pre-Conditioning before any reactive dispatch decision.
+            # This mirrors the same logic in arbitrage_trader.py so both actors
+            # independently trigger proactive charging ahead of severe ramps.
+            pre_resp = _bam_pre_condition({
+                "predicted_load_curve": predicted_curve,
+                "current_price": 0.0
+            })
+            if pre_resp and pre_resp.get("dispatch_kw", 0.0) > 0.0:
+                logger.info(
+                    f"[GridActor] BAM Pre-Conditioning triggered: "
+                    f"{pre_resp['dispatch_kw']:.0f} kW pre-charge ahead of severe ramp."
+                )
 
             # 2. Determine Response Power (P_res_kw)
             p_res_kw = 0.0
@@ -98,28 +143,39 @@ def run_simulator():
                 p_res_kw = GAS_PEAKER_CAPACITY_kW
             elif action == "PREPARE_BATTERY_DISCHARGE":
                 requested_kw = BATTERY_DISCHARGE_RATE_kW
-                
-                # Grid Response is an emergency! We submit a negative kW request to BAM to discharge.
-                # We pass expected_revenue=0 because safety overrides economics.
-                approved_kw = bam_agent.evaluate_request("GridResponseActor", -requested_kw, duration_hours, expected_revenue=0.0)
-                
+                dispatch_payload = {
+                    "agent_name": "GridResponseActor",
+                    "requested_kw": -requested_kw,
+                    "duration_hours": duration_hours,
+                    "expected_revenue_per_kwh": 0.0
+                }
+                resp = _bam_dispatch(dispatch_payload)
+                if resp is not None:
+                    approved_kw = resp["approved_kw"]
+                else:
+                    logger.warning("[GridActor] BAM /dispatch unreachable after retries — defaulting to 0 kW injection.")
+                    approved_kw = 0.0
+
                 # Flip the sign back to positive for grid injection calculations
                 p_res_kw = abs(approved_kw)
-                
+
                 if p_res_kw < requested_kw:
-                    print(f"BAM Agent VETO/SCALE: Wanted to inject {requested_kw}kW, but battery only allowed {p_res_kw}kW.")
+                    logger.warning(f"BAM VETO/SCALE: Wanted {requested_kw}kW, allowed {p_res_kw}kW.")
 
             # 3. Calculate Compensated Output
             p_compensated_kw = actual_power_kw + p_res_kw
             penalty, cost, savings = calculate_finances(predicted_change_kw, p_res_kw, action)
 
             # 4. Write back to a new measurement: "simulated_response"
+            state = _bam_get_state()
+            current_soc_kwh = state["current_soc_kwh"] if state else 0.0
             point = Point("simulated_response") \
                 .field("response_kw", p_res_kw) \
                 .field("compensated_power_kw", p_compensated_kw) \
                 .field("avoided_penalty", penalty) \
                 .field("mitigation_cost", cost) \
                 .field("net_savings", savings) \
+                .field("soc_kwh", current_soc_kwh) \
                 .tag("asset_active", "NONE" if p_res_kw == 0 else action)
 
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)

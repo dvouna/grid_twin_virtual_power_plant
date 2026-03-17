@@ -1,6 +1,23 @@
 import logging
+import os
+import threading
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
+from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException, Security, status
+from fastapi.security.api_key import APIKeyHeader
+import uvicorn
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 logger = logging.getLogger(__name__)
+
+# InfluxDB connection details (shared with the rest of the VPP stack)
+INFLUX_URL   = os.getenv("INFLUX_CLOUD_URL",    "https://us-east-1-1.aws.cloud2.influxdata.com")
+INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN",  "your-cloud-token-here")
+INFLUX_ORG   = os.getenv("INFLUX_CLOUD_ORG",    "Energy Simulation")
+INFLUX_BUCKET= os.getenv("INFLUX_CLOUD_BUCKET", "energy")
 
 class BatteryManagementAgent:
     """
@@ -23,9 +40,96 @@ class BatteryManagementAgent:
         self.max_c_rate = max_c_rate
         self.base_wear_cost_per_kwh = base_wear_cost_per_kwh
         
-        # Internal state tracking
-        self.current_soc_kwh = capacity_kwh * 0.50  # Start at 50% SoC
+        # Concurrency protection
+        self.lock = threading.Lock()
+        
+        # Internal state — will be overwritten by _restore_state() if prior state exists
+        self.current_soc_kwh = capacity_kwh * 0.50  # Default: start at 50% SoC
         self.max_dispatch_kw = capacity_kwh * max_c_rate
+
+    # ------------------------------------------------------------------
+    # A1: State Persistence helpers
+    # ------------------------------------------------------------------
+    def _restore_state(self) -> None:
+        """
+        On startup, query InfluxDB for the latest persisted SoC and restore it.
+        Falls back to the 50% default if no prior record exists.
+        """
+        try:
+            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            query = (
+                f'from(bucket: "{INFLUX_BUCKET}")'
+                f' |> range(start: -30d)'
+                f' |> filter(fn: (r) => r["_measurement"] == "bam_state")'
+                f' |> filter(fn: (r) => r["_field"] == "soc_kwh")'
+                f' |> last()'
+            )
+            tables = client.query_api().query(query)
+            for table in tables:
+                for record in table.records:
+                    restored = float(record.get_value())
+                    # Clamp to physical limits before trusting the stored value
+                    self.current_soc_kwh = max(0.0, min(self.capacity_kwh, restored))
+                    logger.info(f"BAM: Restored SoC from InfluxDB → {self.current_soc_kwh:.2f} kWh ({self.soc_percentage*100:.1f}%)")
+                    return
+            logger.warning("BAM: No prior SoC record found in InfluxDB. Starting at 50%.")
+        except Exception as e:
+            logger.error(f"BAM: State restore failed ({e}). Using 50% default.")
+        finally:
+            client.close()
+
+    def _persist_state(self) -> None:
+        """
+        Write the current SoC to InfluxDB so it can be restored on next startup.
+        Called after every approved dispatch.
+        """
+        try:
+            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            point = (
+                Point("bam_state")
+                .field("soc_kwh", self.current_soc_kwh)
+                .field("soc_pct", self.soc_percentage)
+            )
+            client.write_api(write_options=SYNCHRONOUS).write(
+                bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point
+            )
+        except Exception as e:
+            logger.error(f"BAM: State persist failed ({e}). SoC in memory is still correct.")
+        finally:
+            client.close()
+
+    # ------------------------------------------------------------------
+    # A2: Dispatch telemetry
+    # ------------------------------------------------------------------
+    def _write_dispatch_log(
+        self,
+        agent_name: str,
+        requested_kw: float,
+        approved_kw: float,
+        status: str,
+    ) -> None:
+        """
+        Push an authoritative dispatch record to InfluxDB from the BAM side.
+        This gives a single, canonical audit trail independent of what the actors log.
+        """
+        try:
+            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            point = (
+                Point("bam_dispatch_log")
+                .tag("agent_name", agent_name)
+                .tag("status", status)
+                .field("requested_kw", requested_kw)
+                .field("approved_kw", approved_kw)
+                .field("soc_kwh", self.current_soc_kwh)
+                .field("soc_pct", self.soc_percentage)
+            )
+            client.write_api(write_options=SYNCHRONOUS).write(
+                bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point
+            )
+        except Exception as e:
+            logger.error(f"BAM: Dispatch log write failed ({e}).")
+        finally:
+            client.close()
 
     @property
     def soc_percentage(self) -> float:
@@ -72,9 +176,10 @@ class BatteryManagementAgent:
         Returns:
             approved_kw: The actual kW cleared for dispatch (scaled or 0 if vetoed).
         """
-        # 1. C-Rate Scaling (Safety Constraint)
-        # Never exceed the physical limits of the inverter / battery telemetry.
-        approved_kw = max(-self.max_dispatch_kw, min(self.max_dispatch_kw, requested_kw))
+        with self.lock:
+            # 1. C-Rate Scaling (Safety Constraint)
+            # Never exceed the physical limits of the inverter / battery telemetry.
+            approved_kw = max(-self.max_dispatch_kw, min(self.max_dispatch_kw, requested_kw))
         
         if approved_kw != requested_kw:
             logger.warning(f"BAM Agent: Scaled {agent_name} request of {requested_kw:.2f} kW to {approved_kw:.2f} kW due to {self.max_c_rate} C-Rate limit.")
@@ -96,15 +201,30 @@ class BatteryManagementAgent:
             approved_kw = headroom_kwh / duration_hours
             logger.warning(f"BAM Agent: Scaled {agent_name} request to {approved_kw:.2f} kW to prevent 100% SoC.")
 
-        # 3. Degradation & Economic Veto (Trader only)
+        # 3. Degradation & Economic Veto (Trader only, when expected revenue is provided)
         if expected_revenue > 0.0:
             cost = self._calculate_degradation_cost(approved_kw, duration_hours)
             if expected_revenue < cost:
                 logger.info(f"BAM Agent VETO: {agent_name} trade profit (${expected_revenue:.2f}) is lower than projected degradation cost (${cost:.2f}). Rejecting dispatch.")
                 return 0.0
 
-        # Update official state (In a real system, this updates via hardware telemetry, but for simulation we track it here)
+        # Update official state — always runs for any approved, non-vetoed dispatch
         self.current_soc_kwh += (approved_kw * duration_hours)
+
+        # A1: Persist new SoC so a restart can recover it
+        self._persist_state()
+
+        # Determine status label for the telemetry log
+        if approved_kw == 0.0:
+            log_status = "DENIED"
+        elif approved_kw != requested_kw:
+            log_status = "SCALED"
+        else:
+            log_status = "APPROVED"
+
+        # A2: Write authoritative dispatch record to InfluxDB
+        self._write_dispatch_log(agent_name, requested_kw, approved_kw, log_status)
+
         return approved_kw
 
     def pre_condition(self, predicted_load_curve: list[float], current_price: float = 0.0) -> float:
@@ -132,3 +252,102 @@ class BatteryManagementAgent:
             return self.evaluate_request(agent_name="BAM_PreConditioner", requested_kw=self.max_dispatch_kw)
             
         return 0.0
+
+# --- FastAPI Microservice Implementation ---
+
+# A1: Lifespan handler — restores persisted SoC from InfluxDB before serving traffic
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("BAM Service starting — restoring state from InfluxDB...")
+    bam_service._restore_state()
+    yield
+    logger.info("BAM Service shutting down.")
+
+# C2: Physical battery parameters driven by environment variables.
+# Override at deployment time via Cloud Run / docker-compose env vars
+# without requiring any code changes.
+bam_service = BatteryManagementAgent(
+    capacity_kwh=float(os.getenv("BAM_CAPACITY_KWH",         100000.0)),
+    max_c_rate=float(os.getenv("BAM_MAX_C_RATE",             1.0)),
+    base_wear_cost_per_kwh=float(os.getenv("BAM_WEAR_COST",  0.015)),
+)
+app = FastAPI(
+    title="BAM Service API",
+    description="Battery Asset Management Microservice",
+    lifespan=lifespan
+)
+
+class DispatchRequest(BaseModel):
+    agent_name: str
+    requested_kw: float
+    duration_hours: float = 5/60
+    expected_revenue_per_kwh: float = 0.0
+    
+class DispatchResponse(BaseModel):
+    approved_kw: float
+    current_soc_kwh: float
+    status: str
+
+class PreConditionRequest(BaseModel):
+    predicted_load_curve: list[float]
+    current_price: float = 0.0
+
+# D1: API Key Authentication
+# Read the expected key from the environment. If BAM_API_KEY is not set,
+# auth is disabled with a warning so local development works without secrets.
+_BAM_API_KEY = os.getenv("BAM_API_KEY")
+_api_key_header = APIKeyHeader(name="X-BAM-API-Key", auto_error=False)
+
+def _verify_api_key(api_key: str = Security(_api_key_header)):
+    if not _BAM_API_KEY:
+        logger.warning("BAM_API_KEY is not set — API authentication is DISABLED. Set this env var in production.")
+        return
+    if api_key != _BAM_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing BAM API key."
+        )
+
+@app.post("/dispatch", response_model=DispatchResponse, dependencies=[Depends(_verify_api_key)])
+def request_dispatch(req: DispatchRequest):
+    approved_kw = bam_service.evaluate_request(
+        agent_name=req.agent_name,
+        requested_kw=req.requested_kw,
+        duration_hours=req.duration_hours,
+        expected_revenue=req.expected_revenue_per_kwh
+    )
+    
+    status = "APPROVED"
+    if approved_kw == 0.0 and req.requested_kw != 0.0:
+        status = "DENIED"
+    elif approved_kw != req.requested_kw:
+        status = "SCALED"
+        
+    return DispatchResponse(
+        approved_kw=approved_kw,
+        current_soc_kwh=bam_service.current_soc_kwh,
+        status=status
+    )
+
+@app.post("/pre_condition", dependencies=[Depends(_verify_api_key)])
+def request_pre_condition(req: PreConditionRequest):
+    dispatch_kw = bam_service.pre_condition(
+        predicted_load_curve=req.predicted_load_curve,
+        current_price=req.current_price
+    )
+    return {"dispatch_kw": dispatch_kw}
+
+@app.get("/state")
+def get_state():
+    return {
+        "current_soc_kwh": bam_service.current_soc_kwh,
+        "soc_percentage": bam_service.soc_percentage,
+        "capacity_kwh": bam_service.capacity_kwh,
+        "max_dispatch_kw": bam_service.max_dispatch_kw
+    }
+
+if __name__ == "__main__":
+    logger.info("Starting Battery Management Microservice on port 8000...")
+    # nosec B104 — binding to all interfaces is intentional; this service runs
+    # inside a container where 0.0.0.0 is required for Cloud Run ingress.
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104

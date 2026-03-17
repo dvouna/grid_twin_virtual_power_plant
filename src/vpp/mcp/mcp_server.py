@@ -10,7 +10,7 @@ from starlette.responses import PlainTextResponse
 
 from vpp.core.GridFeatureStore import GridFeatureStore
 
-# ---- INITIALIZATION ----
+# Initialize MCP
 mcp = FastMCP("GridIntelligence")
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -97,7 +97,7 @@ else:
 # Initialize GridFeatureStore for feature engineering
 feature_store = GridFeatureStore(window_size=49, expected_columns=expected_features)
 
-# --- RESOURCES ----
+# Resources
 @mcp.resource("grid://current-status")
 def get_grid_status() -> str:
     """Fetches the most recent net load and renewable output from InfluxDB."""
@@ -112,8 +112,7 @@ def get_grid_status() -> str:
 
     return f"Current Net Load: {results.get('Net_Load_kW', 'N/A')} kW | Solar: {results.get('Renewable_Load_kW', 0)} kW"
 
-
-# --- TOOLS ---
+# Tools
 @mcp.tool()
 def add_grid_observation(
     timestamp: str,

@@ -14,5 +14,9 @@ pytest-cov
 pytest-mock
 pytest-asyncio
 setuptools<81
-starlettestreamlit>=1.31.0
+streamlit>=1.31.0
 plotly>=5.18.0
+fastapi
+uvicorn
+requests
+tenacity

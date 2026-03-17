@@ -35,7 +35,7 @@ jobs:
         run: ruff check . --output-format=github
 
       - name: Run Bandit Security Scan  
-        run: bandit -r src/vpp/mcp/ src/vpp/core/ src/vpp/ml/ src/vpp/agents/arbitrage_trader.py src/vpp/agents/grid_response_actor.py scripts/producer.py scripts/consumer_ml.py -ll
+        run: bandit -r src/vpp/mcp/ src/vpp/core/ src/vpp/ml/ src/vpp/agents/arbitrage_trader.py src/vpp/agents/grid_response_actor.py src/vpp/agents/battery_manager.py scripts/producer.py scripts/consumer_ml.py -ll
 
       - name: Run Pytest with Coverage
         env:
@@ -93,6 +93,56 @@ jobs:
           env_vars: |-
             MCP_TRANSPORT=sse
 
+      # Phase 3: Deploy BAM Service FIRST — actors depend on it being reachable
+      - name: Deploy BAM Service (Staging)
+        id: deploy-bam-stage
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: bam-service-stage
+          region: ${{ env.REGION }}
+          source: .
+          timeout: '300s'
+          flags: >-
+            --command=python
+            --args=-m,vpp.agents.battery_manager
+            --memory=512Mi
+            --cpu=1
+            --min-instances=1
+            --max-instances=3
+            --port=8000
+            --startup-probe=httpGet.path=/state,httpGet.port=8000,initialDelaySeconds=10,periodSeconds=5,failureThreshold=5
+            --no-allow-unauthenticated
+          secrets: |-
+            BAM_API_KEY=BAM_API_KEY:latest
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET_STAGING:latest
+          env_vars: |-
+            BAM_CAPACITY_KWH=100000.0
+            BAM_MAX_C_RATE=1.0
+            BAM_WEAR_COST=0.015
+
+      # Phase 5: Verify BAM is healthy before deploying actors that depend on it
+      - name: BAM Service Health Check (Staging)
+        run: |
+          BAM_URL="${{ steps.deploy-bam-stage.outputs.url }}"
+          echo "Verifying BAM /state at $BAM_URL ..."
+          TOKEN=$(gcloud auth print-identity-token)
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $TOKEN" \
+              "$BAM_URL/state")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ BAM Service healthy (HTTP 200) after $i attempt(s)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ BAM Service failed health check after 10 attempts"
+          exit 1
+
       - name: Deploy Consumer ML Job (Staging)
         uses: 'google-github-actions/deploy-cloudrun@v2'
         with:
@@ -119,6 +169,9 @@ jobs:
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
             INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
             INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET_STAGING:latest
+            BAM_API_KEY=BAM_API_KEY:latest
+          env_vars: |-
+            BAM_API_URL=${{ steps.deploy-bam-stage.outputs.url }}
 
       - name: Deploy Grid Response Actor Job (Staging)
         uses: 'google-github-actions/deploy-cloudrun@v2'
@@ -132,12 +185,9 @@ jobs:
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
             INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
             INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET_STAGING:latest
-
-      - name: Run Staging Health Check
-        run: |
-          echo "Waiting for staging deployment to be ready..."
-          sleep 30
-          echo "Staging deployment successful"
+            BAM_API_KEY=BAM_API_KEY:latest
+          env_vars: |-
+            BAM_API_URL=${{ steps.deploy-bam-stage.outputs.url }}
 
       - name: Create Deployment Summary
         if: success()
@@ -201,6 +251,56 @@ jobs:
           env_vars: |-
             MCP_TRANSPORT=sse
 
+      # Phase 3: Deploy BAM Service FIRST — actors depend on it being reachable
+      - name: Deploy BAM Service (Production)
+        id: deploy-bam-prod
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: bam-service-prod
+          region: ${{ env.REGION }}
+          source: .
+          timeout: '300s'
+          flags: >-
+            --command=python
+            --args=-m,vpp.agents.battery_manager
+            --memory=512Mi
+            --cpu=1
+            --min-instances=1
+            --max-instances=5
+            --port=8000
+            --startup-probe=httpGet.path=/state,httpGet.port=8000,initialDelaySeconds=10,periodSeconds=5,failureThreshold=5
+            --no-allow-unauthenticated
+          secrets: |-
+            BAM_API_KEY=BAM_API_KEY:latest
+            INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
+            INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
+            INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
+            INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
+          env_vars: |-
+            BAM_CAPACITY_KWH=100000.0
+            BAM_MAX_C_RATE=1.0
+            BAM_WEAR_COST=0.015
+
+      # Phase 5: Verify BAM is healthy before deploying actors that depend on it
+      - name: BAM Service Health Check (Production)
+        run: |
+          BAM_URL="${{ steps.deploy-bam-prod.outputs.url }}"
+          echo "Verifying BAM /state at $BAM_URL ..."
+          TOKEN=$(gcloud auth print-identity-token)
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $TOKEN" \
+              "$BAM_URL/state")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ BAM Service healthy (HTTP 200) after $i attempt(s)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ BAM Service failed health check after 10 attempts"
+          exit 1
+
       - name: Deploy Consumer ML Job (Production)
         uses: 'google-github-actions/deploy-cloudrun@v2'
         with:
@@ -227,6 +327,9 @@ jobs:
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
             INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
             INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
+            BAM_API_KEY=BAM_API_KEY:latest
+          env_vars: |-
+            BAM_API_URL=${{ steps.deploy-bam-prod.outputs.url }}
 
       - name: Deploy Grid Response Actor Job (Production)
         uses: 'google-github-actions/deploy-cloudrun@v2'
@@ -240,6 +343,9 @@ jobs:
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
             INFLUX_CLOUD_ORG=INFLUX_CLOUD_ORG:latest
             INFLUX_CLOUD_BUCKET=INFLUX_CLOUD_BUCKET:latest
+            BAM_API_KEY=BAM_API_KEY:latest
+          env_vars: |-
+            BAM_API_URL=${{ steps.deploy-bam-prod.outputs.url }}
 
       - name: Production Deployment Complete
         run: |
