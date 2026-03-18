@@ -24,32 +24,33 @@ server_params = StdioServerParameters(
         "INFLUX_CLOUD_URL": os.getenv("TEST_INFLUX_URL", "http://localhost:8086"),
         "INFLUX_CLOUD_TOKEN": os.getenv("TEST_INFLUX_TOKEN", "smg!indb25"),
         "INFLUX_CLOUD_ORG": os.getenv("TEST_INFLUX_ORG", "myorg"),
-        "INFLUX_CLOUD_BUCKET": os.getenv("TEST_INFLUX_BUCKET", "energy")
-    }
+        "INFLUX_CLOUD_BUCKET": os.getenv("TEST_INFLUX_BUCKET", "energy"),
+    },
 )
 
-@pytest.mark.integration
 
+@pytest.mark.integration
 def generate_sample_observations(count=50):
     """Generate sample grid observations for testing"""
     base_time = datetime(2026, 2, 5, 12, 0, 0)
     observations = []
 
     for i in range(count):
-        timestamp = (base_time + timedelta(seconds=i*5)).isoformat()
+        timestamp = (base_time + timedelta(seconds=i * 5)).isoformat()
         load_base = 5000 + (i * 10)
 
         obs = {
-            'timestamp': timestamp,
-            'hist_load': float(load_base),
-            'elec_load': float(load_base),
-            'solar_kw': 1000.0 if 10 <= (i % 24) <= 14 else 0.0,
-            'wind_kw': 500.0,
-            'net_load': float(load_base - 500.0)
+            "timestamp": timestamp,
+            "hist_load": float(load_base),
+            "elec_load": float(load_base),
+            "solar_kw": 1000.0 if 10 <= (i % 24) <= 14 else 0.0,
+            "wind_kw": 500.0,
+            "net_load": float(load_base - 500.0),
         }
         observations.append(obs)
 
     return observations
+
 
 @pytest.mark.asyncio
 async def test_mcp_server_full_cycle(mocker):
@@ -74,6 +75,7 @@ async def test_mcp_server_full_cycle(mocker):
     # SOLUTION: Skip this heavy integration test in CI if models are missing
     if not os.path.exists("models/xgb_vpp_grid.json"):
         pytest.skip("Skipping integration test: Model file not found in build context")
+
 
 @pytest.mark.asyncio
 async def test_grid_status_resource():

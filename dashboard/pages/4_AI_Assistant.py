@@ -1,5 +1,6 @@
-import streamlit as st
 import time
+
+import streamlit as st
 
 st.set_page_config(page_title="MCP AI Assistant", page_icon="🧠", layout="wide")
 
@@ -15,7 +16,10 @@ st.info("Note: True MCP integration via stdio or SSE will replace this simulated
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "I am the SmartGrid-AI Copilot. How can I help you manage the Virtual Power Plant today?"}
+        {
+            "role": "assistant",
+            "content": "I am the SmartGrid-AI Copilot. How can I help you manage the Virtual Power Plant today?",
+        }
     ]
 
 # Display chat messages from history on app rerun
@@ -38,7 +42,7 @@ if prompt := st.chat_input("Ask about grid stability, predict load, or check age
         response = "The Arbitrage Trader is currently active and recently purchased 10 MW to charge the battery system."
     else:
         response = f"I am connected to the MCP Server, but I don't have a specific tool to answer that yet. I heard you ask: '{prompt}'"
-    
+
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
@@ -50,6 +54,6 @@ if prompt := st.chat_input("Ask about grid stability, predict load, or check age
             # Add a blinking cursor to simulate typing
             message_placeholder.markdown(full_response + "▌")
         message_placeholder.markdown(full_response)
-    
+
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": full_response})

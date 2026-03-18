@@ -1,18 +1,18 @@
-import os
-import time
 import json
 import logging
+import os
+import time
 
+import requests
 from dotenv import load_dotenv
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
-import requests
 from tenacity import (
+    RetryError,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    RetryError,
 )
 
 # Load environment variables from .env file
@@ -35,11 +35,11 @@ _BAM_HEADERS = {"X-BAM-API-Key": BAM_API_KEY} if BAM_API_KEY else {}
 # Each function retries up to 3 times with exponential backoff (1s, 2s, 4s).
 # On total failure, returns a safe fallback value instead of propagating an exception.
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=4),
-    retry=retry_if_exception_type((requests.exceptions.ConnectionError,
-                                   requests.exceptions.Timeout)),
+    retry=retry_if_exception_type((requests.exceptions.ConnectionError, requests.exceptions.Timeout)),
     reraise=False,
 )
 def _bam_get_state() -> dict:
@@ -47,11 +47,11 @@ def _bam_get_state() -> dict:
     resp.raise_for_status()
     return resp.json()
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=4),
-    retry=retry_if_exception_type((requests.exceptions.ConnectionError,
-                                   requests.exceptions.Timeout)),
+    retry=retry_if_exception_type((requests.exceptions.ConnectionError, requests.exceptions.Timeout)),
     reraise=False,
 )
 def _bam_dispatch(payload: dict) -> dict:
@@ -59,17 +59,19 @@ def _bam_dispatch(payload: dict) -> dict:
     resp.raise_for_status()
     return resp.json()
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=4),
-    retry=retry_if_exception_type((requests.exceptions.ConnectionError,
-                                   requests.exceptions.Timeout)),
+    retry=retry_if_exception_type((requests.exceptions.ConnectionError, requests.exceptions.Timeout)),
     reraise=False,
 )
 def _bam_pre_condition(payload: dict) -> dict:
     resp = requests.post(f"{BAM_API_URL}/pre_condition", json=payload, headers=_BAM_HEADERS, timeout=5)
     resp.raise_for_status()
     return resp.json()
+
+
 def run_arbitrage_trader():
 
     client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
@@ -118,10 +120,7 @@ def run_arbitrage_trader():
             current_soc_kwh = state_resp["current_soc_kwh"]
 
             # --- AI PRE-CONDITIONING (Safety overrides economics) ---
-            pre_resp = _bam_pre_condition({
-                "predicted_load_curve": predicted_curve,
-                "current_price": 0.0
-            })
+            pre_resp = _bam_pre_condition({"predicted_load_curve": predicted_curve, "current_price": 0.0})
             pre_condition_kw = (pre_resp or {}).get("dispatch_kw", 0.0)
 
             if pre_condition_kw > 0.0:
@@ -143,7 +142,7 @@ def run_arbitrage_trader():
                         "agent_name": "ArbitrageTrader",
                         "requested_kw": requested_kw,
                         "duration_hours": duration_hours,
-                        "expected_revenue_per_kwh": 0.0
+                        "expected_revenue_per_kwh": 0.0,
                     }
                     resp = _bam_dispatch(dispatch_payload)
                     if resp:
@@ -163,7 +162,7 @@ def run_arbitrage_trader():
                         "agent_name": "ArbitrageTrader",
                         "requested_kw": requested_kw,
                         "duration_hours": duration_hours,
-                        "expected_revenue_per_kwh": expected_revenue
+                        "expected_revenue_per_kwh": expected_revenue,
                     }
                     resp = _bam_dispatch(dispatch_payload)
                     if resp:
@@ -176,23 +175,28 @@ def run_arbitrage_trader():
                         logger.warning("[Trader] BAM /dispatch (SELL) unreachable — holding position.")
 
             # 3. Log Trade to InfluxDB
-            point = Point("trading_log") \
-                .field("soc_kwh", current_soc_kwh) \
-                .field("trade_volume", approved_kw) \
-                .field("realized_pnl", profit_loss) \
+            point = (
+                Point("trading_log")
+                .field("soc_kwh", current_soc_kwh)
+                .field("trade_volume", approved_kw)
+                .field("realized_pnl", profit_loss)
                 .tag("trade_action", trade_action)
+            )
 
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
 
             if trade_action != "HOLD":
-                print(f"[TRADE] {trade_action} {abs(approved_kw):.0f}kW | SoC: {current_soc_kwh:.2f}kWh | PnL: ${profit_loss:.2f}")
+                print(
+                    f"[TRADE] {trade_action} {abs(approved_kw):.0f}kW | SoC: {current_soc_kwh:.2f}kWh | PnL: ${profit_loss:.2f}"
+                )
 
-            time.sleep(10) # Run trading cycle every 5 seconds
+            time.sleep(10)  # Run trading cycle every 5 seconds
 
     except Exception as e:
         print(f"Trader Error: {e}")
     finally:
         client.close()
+
 
 if __name__ == "__main__":
     run_arbitrage_trader()

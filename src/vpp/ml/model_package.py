@@ -25,10 +25,8 @@ def package_xgboost_model(model, model_name, random_search_results=None, additio
         results_info = {
             "best_hyperparameters": {k: str(v) for k, v in random_search_results.best_params_.items()},
             "best_score_rmse": (
-                float(-random_search_results.best_score_)
-                if hasattr(random_search_results, 'best_score_')
-                else None
-            )
+                float(-random_search_results.best_score_) if hasattr(random_search_results, "best_score_") else None
+            ),
         }
 
     # 3. Capture Environment
@@ -36,7 +34,7 @@ def package_xgboost_model(model, model_name, random_search_results=None, additio
         "python_version": platform.python_version(),
         "xgboost_version": xgb.__version__,
         "platform": platform.platform(),
-        "installed_packages": [f"{d.project_name}=={d.version}" for d in pkg_resources.working_set]
+        "installed_packages": [f"{d.project_name}=={d.version}" for d in pkg_resources.working_set],
     }
 
     # 4. Combine into final package info
@@ -45,10 +43,10 @@ def package_xgboost_model(model, model_name, random_search_results=None, additio
             "name": model_name,
             "type": "XGBoost Regression",
             "saved_at": datetime.now().isoformat(),
-            **results_info
+            **results_info,
         },
         "environment": env_info,
-        "metadata": additional_metadata or {}
+        "metadata": additional_metadata or {},
     }
 
     # 5. Save metadata to JSON
@@ -59,6 +57,7 @@ def package_xgboost_model(model, model_name, random_search_results=None, additio
     print("Model Packaging Complete")
     print(f"Model saved to:    {model_name}.json")
     print(f"Metadata saved to: {metadata_filename}")
+
 
 if __name__ == "__main__":
     print("This script provides the package_xgboost_model function for use in your notebooks.")

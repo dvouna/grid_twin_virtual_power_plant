@@ -5,22 +5,28 @@ import pandas as pd
 
 # LOAD MODEL + FEATURE CONFIG
 
+
 def load_model(model_path="xgb_model.json"):
     import xgboost as xgb
+
     model = xgb.XGBRegressor()
     model.load_model(model_path)
     return model
+
 
 def load_feature_config(config_path="feature_config.json"):
     with open(config_path, "r") as f:
         return json.load(f)
 
+
 # FEATURE ENGINEERING FOR INFERENCE
+
 
 def create_lag_features(df, lag_list, col="net_load"):
     for lag in lag_list:
         df[f"{col}_lag_{lag}"] = df[col].shift(lag)
     return df
+
 
 def create_rolling_features(df, windows, col="net_load"):
     for w in windows:
@@ -28,10 +34,12 @@ def create_rolling_features(df, windows, col="net_load"):
         df[f"{col}_roll_std_{w}"] = df[col].rolling(w).std()
     return df
 
+
 def create_interaction_features(df):
     df["solar_x_temp"] = df["solar"] * df["temperature"]
     df["wind_x_pressure"] = df["wind"] * df["pressure"]
     return df
+
 
 def create_cyclical_features(df):
     df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
@@ -40,7 +48,9 @@ def create_cyclical_features(df):
     df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
     return df
 
-# MAIN FEATURE PIPELINE 
+
+# MAIN FEATURE PIPELINE
+
 
 def prepare_features(df, config):
     df = df.copy()
@@ -63,7 +73,9 @@ def prepare_features(df, config):
 
     return df
 
+
 # PREDICTION FUNCTION
+
 
 def predict_next(df_raw, model, config):
     df_feat = prepare_features(df_raw, config)
@@ -73,6 +85,7 @@ def predict_next(df_raw, model, config):
 
     prediction = model.predict(X)[0]
     return prediction
+
 
 # EXAMPLE USAGE
 

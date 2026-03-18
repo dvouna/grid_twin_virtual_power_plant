@@ -4,32 +4,33 @@ import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from pydantic import BaseModel
-from fastapi import FastAPI, Depends, HTTPException, Security, status
-from fastapi.security.api_key import APIKeyHeader
 import uvicorn
+from fastapi import Depends, FastAPI, HTTPException, Security, status
+from fastapi.security.api_key import APIKeyHeader
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 # InfluxDB connection details (shared with the rest of the VPP stack)
-INFLUX_URL   = os.getenv("INFLUX_CLOUD_URL",    "https://us-east-1-1.aws.cloud2.influxdata.com")
-INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN",  "your-cloud-token-here")
-INFLUX_ORG   = os.getenv("INFLUX_CLOUD_ORG",    "Energy Simulation")
-INFLUX_BUCKET= os.getenv("INFLUX_CLOUD_BUCKET", "energy")
+INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
+INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
+INFLUX_ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
+INFLUX_BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
+
 
 class BatteryManagementAgent:
     """
     Battery Asset Management (BAM) Agent.
-    Acts as a central coordinator, gatekeeping dispatch requests from 
+    Acts as a central coordinator, gatekeeping dispatch requests from
     ArbitrageTrader and GridResponseActor to protect the physical asset.
     """
 
     def __init__(self, capacity_kwh: float = 10000.0, max_c_rate: float = 1.0, base_wear_cost_per_kwh: float = 0.015):
         """
         Initialize the BAM Agent.
-        
+
         Args:
             capacity_kwh: Total energy capacity of the battery in Kilowatt-hours (kWh).
             max_c_rate: The maximum rate of charge/discharge relative to its capacity.
@@ -39,10 +40,10 @@ class BatteryManagementAgent:
         self.capacity_kwh = capacity_kwh
         self.max_c_rate = max_c_rate
         self.base_wear_cost_per_kwh = base_wear_cost_per_kwh
-        
+
         # Concurrency protection
         self.lock = threading.Lock()
-        
+
         # Internal state — will be overwritten by _restore_state() if prior state exists
         self.current_soc_kwh = capacity_kwh * 0.50  # Default: start at 50% SoC
         self.max_dispatch_kw = capacity_kwh * max_c_rate
@@ -59,10 +60,10 @@ class BatteryManagementAgent:
             client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
             query = (
                 f'from(bucket: "{INFLUX_BUCKET}")'
-                f' |> range(start: -30d)'
+                f" |> range(start: -30d)"
                 f' |> filter(fn: (r) => r["_measurement"] == "bam_state")'
                 f' |> filter(fn: (r) => r["_field"] == "soc_kwh")'
-                f' |> last()'
+                f" |> last()"
             )
             tables = client.query_api().query(query)
             for table in tables:
@@ -70,7 +71,9 @@ class BatteryManagementAgent:
                     restored = float(record.get_value())
                     # Clamp to physical limits before trusting the stored value
                     self.current_soc_kwh = max(0.0, min(self.capacity_kwh, restored))
-                    logger.info(f"BAM: Restored SoC from InfluxDB → {self.current_soc_kwh:.2f} kWh ({self.soc_percentage*100:.1f}%)")
+                    logger.info(
+                        f"BAM: Restored SoC from InfluxDB → {self.current_soc_kwh:.2f} kWh ({self.soc_percentage * 100:.1f}%)"
+                    )
                     return
             logger.warning("BAM: No prior SoC record found in InfluxDB. Starting at 50%.")
         except Exception as e:
@@ -85,14 +88,8 @@ class BatteryManagementAgent:
         """
         try:
             client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-            point = (
-                Point("bam_state")
-                .field("soc_kwh", self.current_soc_kwh)
-                .field("soc_pct", self.soc_percentage)
-            )
-            client.write_api(write_options=SYNCHRONOUS).write(
-                bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point
-            )
+            point = Point("bam_state").field("soc_kwh", self.current_soc_kwh).field("soc_pct", self.soc_percentage)
+            client.write_api(write_options=SYNCHRONOUS).write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
         except Exception as e:
             logger.error(f"BAM: State persist failed ({e}). SoC in memory is still correct.")
         finally:
@@ -123,9 +120,7 @@ class BatteryManagementAgent:
                 .field("soc_kwh", self.current_soc_kwh)
                 .field("soc_pct", self.soc_percentage)
             )
-            client.write_api(write_options=SYNCHRONOUS).write(
-                bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point
-            )
+            client.write_api(write_options=SYNCHRONOUS).write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
         except Exception as e:
             logger.error(f"BAM: Dispatch log write failed ({e}).")
         finally:
@@ -145,16 +140,16 @@ class BatteryManagementAgent:
             return 3.0  # 3x penalty in the danger zones
         elif soc_pct < 0.20 or soc_pct > 0.80:
             return 1.5  # 1.5x penalty near the edges
-        return 1.0      # Base wear in the healthy middle
+        return 1.0  # Base wear in the healthy middle
 
     def _calculate_degradation_cost(self, kw_requested: float, duration_hours: float) -> float:
         """
         Calculates the financial cost of degradation for a proposed dispatch.
-        
+
         Args:
             kw_requested: The absolute power requested in Kilowatts (kW).
             duration_hours: The duration of the dispatch in hours.
-            
+
         Returns:
             The degradation cost in dollars ($).
         """
@@ -162,17 +157,19 @@ class BatteryManagementAgent:
         penalty = self._calculate_penalty_factor(self.soc_percentage)
         return energy_kwh * self.base_wear_cost_per_kwh * penalty
 
-    def evaluate_request(self, agent_name: str, requested_kw: float, duration_hours: float = 5/60, expected_revenue: float = 0.0) -> float:
+    def evaluate_request(
+        self, agent_name: str, requested_kw: float, duration_hours: float = 5 / 60, expected_revenue: float = 0.0
+    ) -> float:
         """
         The central gatekeeper method. Agents submit dispatch requests here.
         Positive kW implies CHARGING. Negative kW implies DISCHARGING.
-        
+
         Args:
             agent_name: Name of the requesting agent (e.g., 'ArbitrageTrader').
             requested_kw: Requested dispatch power in Kilowatts (kW).
             duration_hours: Expected duration of the dispatch (default 5 minutes).
             expected_revenue: The anticipated profit context from financial trades ($).
-            
+
         Returns:
             approved_kw: The actual kW cleared for dispatch (scaled or 0 if vetoed).
         """
@@ -180,21 +177,23 @@ class BatteryManagementAgent:
             # 1. C-Rate Scaling (Safety Constraint)
             # Never exceed the physical limits of the inverter / battery telemetry.
             approved_kw = max(-self.max_dispatch_kw, min(self.max_dispatch_kw, requested_kw))
-        
+
         if approved_kw != requested_kw:
-            logger.warning(f"BAM Agent: Scaled {agent_name} request of {requested_kw:.2f} kW to {approved_kw:.2f} kW due to {self.max_c_rate} C-Rate limit.")
+            logger.warning(
+                f"BAM Agent: Scaled {agent_name} request of {requested_kw:.2f} kW to {approved_kw:.2f} kW due to {self.max_c_rate} C-Rate limit."
+            )
 
         # 2. State of Charge Constraint (0% / 100% boundary)
         energy_delta_kwh = approved_kw * duration_hours
         projected_soc_kwh = self.current_soc_kwh + energy_delta_kwh
         projected_soc_pct = projected_soc_kwh / self.capacity_kwh
-        
+
         # If the dispatch pushes us out of bounds, scale it to exactly hit the boundary
         if projected_soc_pct <= 0.0:
             # We can only discharge what is remaining
             approved_kw = -self.current_soc_kwh / duration_hours
             logger.warning(f"BAM Agent: Scaled {agent_name} request to {approved_kw:.2f} kW to prevent 0% SoC.")
-            
+
         elif projected_soc_pct >= 1.0:
             # We can only charge the remaining headroom
             headroom_kwh = self.capacity_kwh - self.current_soc_kwh
@@ -205,11 +204,13 @@ class BatteryManagementAgent:
         if expected_revenue > 0.0:
             cost = self._calculate_degradation_cost(approved_kw, duration_hours)
             if expected_revenue < cost:
-                logger.info(f"BAM Agent VETO: {agent_name} trade profit (${expected_revenue:.2f}) is lower than projected degradation cost (${cost:.2f}). Rejecting dispatch.")
+                logger.info(
+                    f"BAM Agent VETO: {agent_name} trade profit (${expected_revenue:.2f}) is lower than projected degradation cost (${cost:.2f}). Rejecting dispatch."
+                )
                 return 0.0
 
         # Update official state — always runs for any approved, non-vetoed dispatch
-        self.current_soc_kwh += (approved_kw * duration_hours)
+        self.current_soc_kwh += approved_kw * duration_hours
 
         # A1: Persist new SoC so a restart can recover it
         self._persist_state()
@@ -230,30 +231,32 @@ class BatteryManagementAgent:
     def pre_condition(self, predicted_load_curve: list[float], current_price: float = 0.0) -> float:
         """
         AI Integration: Uses XGBoost predictions to preemptively act.
-        
+
         Args:
             predicted_load_curve: A list of predicted Net Load values (kW) for the upcoming intervals.
             current_price: Current market price context.
-            
+
         Returns:
             dispatch_kw: Autonomous dispatch command generated by the BAM agent itself.
         """
         # Example pre-conditioning placeholder logic
         if not predicted_load_curve:
             return 0.0
-            
+
         peak_predicted_load = max(predicted_load_curve)
-        
+
         # If a massive load ramp is coming and we are low on charge, force a charge cycle now
         # Assuming peak load above 400MW (400,000 kW) is severe
         if peak_predicted_load > 400000.0 and self.soc_percentage < 0.40:
             logger.info("BAM Agent Pre-Conditioning: Severe load predicted. Pre-charging at Maximum C-Rate.")
             # Request maximum charge from the internal gatekeeper (pass expected_revenue=0 to bypass economic checks since safety takes precedence)
             return self.evaluate_request(agent_name="BAM_PreConditioner", requested_kw=self.max_dispatch_kw)
-            
+
         return 0.0
 
+
 # --- FastAPI Microservice Implementation ---
+
 
 # A1: Lifespan handler — restores persisted SoC from InfluxDB before serving traffic
 @asynccontextmanager
@@ -263,34 +266,35 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("BAM Service shutting down.")
 
+
 # C2: Physical battery parameters driven by environment variables.
 # Override at deployment time via Cloud Run / docker-compose env vars
 # without requiring any code changes.
 bam_service = BatteryManagementAgent(
-    capacity_kwh=float(os.getenv("BAM_CAPACITY_KWH",         100000.0)),
-    max_c_rate=float(os.getenv("BAM_MAX_C_RATE",             1.0)),
-    base_wear_cost_per_kwh=float(os.getenv("BAM_WEAR_COST",  0.015)),
+    capacity_kwh=float(os.getenv("BAM_CAPACITY_KWH", 100000.0)),
+    max_c_rate=float(os.getenv("BAM_MAX_C_RATE", 1.0)),
+    base_wear_cost_per_kwh=float(os.getenv("BAM_WEAR_COST", 0.015)),
 )
-app = FastAPI(
-    title="BAM Service API",
-    description="Battery Asset Management Microservice",
-    lifespan=lifespan
-)
+app = FastAPI(title="BAM Service API", description="Battery Asset Management Microservice", lifespan=lifespan)
+
 
 class DispatchRequest(BaseModel):
     agent_name: str
     requested_kw: float
-    duration_hours: float = 5/60
+    duration_hours: float = 5 / 60
     expected_revenue_per_kwh: float = 0.0
-    
+
+
 class DispatchResponse(BaseModel):
     approved_kw: float
     current_soc_kwh: float
     status: str
 
+
 class PreConditionRequest(BaseModel):
     predicted_load_curve: list[float]
     current_price: float = 0.0
+
 
 # D1: API Key Authentication
 # Read the expected key from the environment. If BAM_API_KEY is not set,
@@ -298,15 +302,14 @@ class PreConditionRequest(BaseModel):
 _BAM_API_KEY = os.getenv("BAM_API_KEY")
 _api_key_header = APIKeyHeader(name="X-BAM-API-Key", auto_error=False)
 
+
 def _verify_api_key(api_key: str = Security(_api_key_header)):
     if not _BAM_API_KEY:
         logger.warning("BAM_API_KEY is not set — API authentication is DISABLED. Set this env var in production.")
         return
     if api_key != _BAM_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid or missing BAM API key."
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid or missing BAM API key.")
+
 
 @app.post("/dispatch", response_model=DispatchResponse, dependencies=[Depends(_verify_api_key)])
 def request_dispatch(req: DispatchRequest):
@@ -314,28 +317,25 @@ def request_dispatch(req: DispatchRequest):
         agent_name=req.agent_name,
         requested_kw=req.requested_kw,
         duration_hours=req.duration_hours,
-        expected_revenue=req.expected_revenue_per_kwh
+        expected_revenue=req.expected_revenue_per_kwh,
     )
-    
+
     status = "APPROVED"
     if approved_kw == 0.0 and req.requested_kw != 0.0:
         status = "DENIED"
     elif approved_kw != req.requested_kw:
         status = "SCALED"
-        
-    return DispatchResponse(
-        approved_kw=approved_kw,
-        current_soc_kwh=bam_service.current_soc_kwh,
-        status=status
-    )
+
+    return DispatchResponse(approved_kw=approved_kw, current_soc_kwh=bam_service.current_soc_kwh, status=status)
+
 
 @app.post("/pre_condition", dependencies=[Depends(_verify_api_key)])
 def request_pre_condition(req: PreConditionRequest):
     dispatch_kw = bam_service.pre_condition(
-        predicted_load_curve=req.predicted_load_curve,
-        current_price=req.current_price
+        predicted_load_curve=req.predicted_load_curve, current_price=req.current_price
     )
     return {"dispatch_kw": dispatch_kw}
+
 
 @app.get("/state")
 def get_state():
@@ -343,8 +343,9 @@ def get_state():
         "current_soc_kwh": bam_service.current_soc_kwh,
         "soc_percentage": bam_service.soc_percentage,
         "capacity_kwh": bam_service.capacity_kwh,
-        "max_dispatch_kw": bam_service.max_dispatch_kw
+        "max_dispatch_kw": bam_service.max_dispatch_kw,
     }
+
 
 if __name__ == "__main__":
     logger.info("Starting Battery Management Microservice on port 8000...")
