@@ -297,18 +297,28 @@ class PreConditionRequest(BaseModel):
 
 
 # D1: API Key Authentication
-# Read the expected key from the environment. If BAM_API_KEY is not set,
-# auth is disabled with a warning so local development works without secrets.
-_BAM_API_KEY = os.getenv("BAM_API_KEY")
+# _api_key_header declares the expected header name for OpenAPI docs.
+# NOTE: We intentionally do NOT cache os.getenv("BAM_API_KEY") at module level
+# because that value would be frozen at import time — breaking test isolation
+# when the test suite sets os.environ["BAM_API_KEY"] after the module is first
+# imported by another test file.
 _api_key_header = APIKeyHeader(name="X-BAM-API-Key", auto_error=False)
 
 
 def _verify_api_key(api_key: str = Security(_api_key_header)):
-    if not _BAM_API_KEY:
-        logger.warning("BAM_API_KEY is not set — API authentication is DISABLED. Set this env var in production.")
+    # Read dynamically so env-var changes (e.g. in tests) are always respected.
+    expected_key = os.getenv("BAM_API_KEY")
+    if not expected_key:
+        logger.warning(
+            "BAM_API_KEY is not set — API authentication is DISABLED. "
+            "Set this env var in production."
+        )
         return
-    if api_key != _BAM_API_KEY:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid or missing BAM API key.")
+    if api_key != expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing BAM API key.",
+        )
 
 
 @app.post("/dispatch", response_model=DispatchResponse, dependencies=[Depends(_verify_api_key)])
