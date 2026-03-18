@@ -122,24 +122,25 @@ jobs:
             BAM_MAX_C_RATE=1.0
             BAM_WEAR_COST=0.015
 
-      # Phase 5: Verify BAM is healthy before deploying actors that depend on it
+      # Phase 5: Verify BAM is healthy before deploying actors that depend on it.
+      # Uses gcloud (no identity token needed) — the startup-probe on the service
+      # already verified HTTP /state responds before Cloud Run marks it READY.
       - name: BAM Service Health Check (Staging)
         run: |
-          BAM_URL="${{ steps.deploy-bam-stage.outputs.url }}"
-          echo "Verifying BAM /state at $BAM_URL ..."
-          TOKEN=$(gcloud auth print-identity-token)
+          echo "Waiting for bam-service-stage to report READY..."
           for i in {1..10}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $TOKEN" \
-              "$BAM_URL/state")
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ BAM Service healthy (HTTP 200) after $i attempt(s)"
+            READY=$(gcloud run services describe bam-service-stage \
+              --region=${{ env.REGION }} \
+              --project=${{ env.GCP_PROJECT_ID }} \
+              --format="value(status.conditions[0].status)")
+            if [ "$READY" = "True" ]; then
+              echo "✅ BAM Service is READY after $i attempt(s)"
               exit 0
             fi
-            echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+            echo "Attempt $i: status=$READY — retrying in 10s..."
             sleep 10
           done
-          echo "❌ BAM Service failed health check after 10 attempts"
+          echo "❌ BAM Service failed to become READY after 10 attempts"
           exit 1
 
       - name: Deploy Consumer ML Job (Staging)
@@ -279,24 +280,25 @@ jobs:
             BAM_MAX_C_RATE=1.0
             BAM_WEAR_COST=0.015
 
-      # Phase 5: Verify BAM is healthy before deploying actors that depend on it
+      # Phase 5: Verify BAM is healthy before deploying actors that depend on it.
+      # Uses gcloud (no identity token needed) — the startup-probe on the service
+      # already verified HTTP /state responds before Cloud Run marks it READY.
       - name: BAM Service Health Check (Production)
         run: |
-          BAM_URL="${{ steps.deploy-bam-prod.outputs.url }}"
-          echo "Verifying BAM /state at $BAM_URL ..."
-          TOKEN=$(gcloud auth print-identity-token)
+          echo "Waiting for bam-service-prod to report READY..."
           for i in {1..10}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer $TOKEN" \
-              "$BAM_URL/state")
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ BAM Service healthy (HTTP 200) after $i attempt(s)"
+            READY=$(gcloud run services describe bam-service-prod \
+              --region=${{ env.REGION }} \
+              --project=${{ env.GCP_PROJECT_ID }} \
+              --format="value(status.conditions[0].status)")
+            if [ "$READY" = "True" ]; then
+              echo "✅ BAM Service is READY after $i attempt(s)"
               exit 0
             fi
-            echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+            echo "Attempt $i: status=$READY — retrying in 10s..."
             sleep 10
           done
-          echo "❌ BAM Service failed health check after 10 attempts"
+          echo "❌ BAM Service failed to become READY after 10 attempts"
           exit 1
 
       - name: Deploy Consumer ML Job (Production)
