@@ -149,7 +149,7 @@ jobs:
           job: consumer-ml-stage
           region: ${{ env.REGION }}
           source: .
-          flags: --command=python --args=scripts/consumer_ml.py
+          flags: --command=python,scripts/consumer_ml.py
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
@@ -163,7 +163,7 @@ jobs:
           job: arbitrage-trader-stage
           region: ${{ env.REGION }}
           source: .
-          flags: --command=python --args=-m,vpp.agents.arbitrage_trader
+          flags: --command=python,-m,vpp.agents.arbitrage_trader
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
@@ -179,7 +179,7 @@ jobs:
           job: grid-response-stage
           region: ${{ env.REGION }}
           source: .
-          flags: --command=python --args=-m,vpp.agents.grid_response_actor
+          flags: --command=python,-m,vpp.agents.grid_response_actor
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
@@ -307,7 +307,7 @@ jobs:
           job: consumer-ml-prod
           region: ${{ env.REGION }}
           source: .
-          flags: --command=python --args=scripts/consumer_ml.py
+          flags: --command=python,scripts/consumer_ml.py
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
@@ -321,7 +321,7 @@ jobs:
           job: arbitrage-trader-prod
           region: ${{ env.REGION }}
           source: .
-          flags: --command=python --args=-m,vpp.agents.arbitrage_trader
+          flags: --command=python,-m,vpp.agents.arbitrage_trader
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
@@ -337,7 +337,7 @@ jobs:
           job: grid-response-prod
           region: ${{ env.REGION }}
           source: .
-          flags: --command=python --args=-m,vpp.agents.grid_response_actor
+          flags: --command=python,-m,vpp.agents.grid_response_actor
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
             INFLUX_CLOUD_TOKEN=INFLUX_CLOUD_TOKEN:latest
