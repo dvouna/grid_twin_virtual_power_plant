@@ -39,10 +39,10 @@ class MockInfluxDBClient:
         class MockTable:
             def __init__(self):
                 self.records = [
-                    MockRecord('Net_Load_kW', 4523.5),
-                    MockRecord('Renewable_Load_kW', 1250.0),
-                    MockRecord('Solar_Generation_kW', 800.0),
-                    MockRecord('Battery_SOC', 75.5)
+                    MockRecord("Net_Load_kW", 4523.5),
+                    MockRecord("Renewable_Load_kW", 1250.0),
+                    MockRecord("Solar_Generation_kW", 800.0),
+                    MockRecord("Battery_SOC", 75.5),
                 ]
 
         return [MockTable()]
@@ -70,9 +70,9 @@ class MCPServerTester:
 
     def test_resource_grid_status(self, use_mock=True):
         """Test the grid://current-status resource"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST: Grid Status Resource")
-        print("="*60)
+        print("=" * 60)
 
         try:
             if use_mock:
@@ -85,7 +85,7 @@ class MCPServerTester:
 
                 try:
                     # Import and call the function directly
-                    with patch('vpp.mcp.mcp_server.InfluxDBClient', MockInfluxDBClient):
+                    with patch("vpp.mcp.mcp_server.InfluxDBClient", MockInfluxDBClient):
                         result = mcp_server.get_grid_status()
 
                     print(f"✓ Resource Result: {result}")
@@ -98,6 +98,7 @@ class MCPServerTester:
             else:
                 # Try real InfluxDB connection
                 import mcp_server
+
                 result = mcp_server.get_grid_status()
                 print(f"✓ Resource Result: {result}")
                 self.results.append(("Grid Status Resource", "PASS", result))
@@ -110,9 +111,9 @@ class MCPServerTester:
 
     def test_tool_predict_ramp(self, test_cases=None):
         """Test the predict_grid_ramp tool"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST: Predict Grid Ramp Tool")
-        print("="*60)
+        print("=" * 60)
 
         if test_cases is None:
             test_cases = [
@@ -128,9 +129,9 @@ class MCPServerTester:
                 print(f"  Input: net_load={case['net_load']}, lag_1={case['lag_1']}, lag_2={case['lag_2']}")
 
                 # Mock prediction based on trend
-                if case['net_load'] > case['lag_1']:
+                if case["net_load"] > case["lag_1"]:
                     mock_pred = 150.5
-                elif case['net_load'] < case['lag_1']:
+                elif case["net_load"] < case["lag_1"]:
                     mock_pred = -120.3
                 else:
                     mock_pred = 5.2
@@ -142,15 +143,12 @@ class MCPServerTester:
         else:
             try:
                 import mcp_server
+
                 for i, case in enumerate(test_cases, 1):
                     print(f"\nTest Case {i}: {case['scenario']}")
                     print(f"  Input: net_load={case['net_load']}, lag_1={case['lag_1']}, lag_2={case['lag_2']}")
 
-                    result = mcp_server.predict_grid_ramp(
-                        case['net_load'],
-                        case['lag_1'],
-                        case['lag_2']
-                    )
+                    result = mcp_server.predict_grid_ramp(case["net_load"], case["lag_1"], case["lag_2"])
                     print(f"  Result: {result}")
                     self.results.append((f"Predict Ramp - {case['scenario']}", "PASS", result))
             except Exception as e:
@@ -160,12 +158,13 @@ class MCPServerTester:
 
     def test_prompt_analyze_resilience(self):
         """Test the analyze_resilience prompt"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST: Analyze Resilience Prompt")
-        print("="*60)
+        print("=" * 60)
 
         try:
             import mcp_server
+
             result = mcp_server.analyze_resilience()
             print(f"✓ Prompt Generated: {result}")
             self.results.append(("Analyze Resilience Prompt", "PASS", result))
@@ -177,9 +176,9 @@ class MCPServerTester:
 
     def print_summary(self):
         """Print test summary"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST SUMMARY")
-        print("="*60)
+        print("=" * 60)
 
         passed = sum(1 for _, status, _ in self.results if "PASS" in status)
         failed = sum(1 for _, status, _ in self.results if "FAIL" in status)
@@ -203,9 +202,9 @@ class MCPServerTester:
 
 def main():
     """Main test runner"""
-    print("="*60)
+    print("=" * 60)
     print("GridIntelligence MCP Server Test Suite")
-    print("="*60)
+    print("=" * 60)
 
     tester = MCPServerTester()
 

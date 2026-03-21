@@ -14,12 +14,9 @@ pytest-cov
 pytest-mock
 pytest-asyncio
 setuptools<81
-starlette
 streamlit>=1.31.0
-google-generativeai>=0.8.0
-nest_asyncio>=1.6.0
-httpx>=0.27.0
 plotly>=5.18.0
-tenacity>=8.3.0
-google-cloud-logging>=3.10.0
-
+fastapi
+uvicorn
+requests
+tenacity

@@ -18,43 +18,41 @@ def generate_sample_observations(count=50):
     observations = []
 
     for i in range(count):
-        timestamp = (base_time + timedelta(seconds=i*5)).isoformat()
+        timestamp = (base_time + timedelta(seconds=i * 5)).isoformat()
 
         # Simulate realistic grid data
-        hour = (base_time + timedelta(seconds=i*5)).hour
+        hour = (base_time + timedelta(seconds=i * 5)).hour
         load_base = 5000 + (hour * 100)  # Load increases during day
 
         obs = {
-            'Timestamp': timestamp,
-            'Hist_Load': load_base + (i * 10),
-            'Elec_Load': load_base,
-            'Solar_kw': max(0, 1000 * (1 - abs(hour - 12) / 12)),  # Peak at noon
-            'Wind_kw': 500 + (i % 10) * 50,
-            'RF_Error': 0.0,
-            'C_Flag': 0,
-            'C_R_S': 0.0,
-            'B_SOC': 75.0 - (i * 0.5),  # Battery slowly discharging
-            'Temp': 20 + (hour / 2),
-            'Humidity': 60,
-            'S_Irr': max(0, 800 * (1 - abs(hour - 12) / 12)),
-            'Cloud': 30,
-            'W_Speed': 5.0,
-            'HPa': 1013.25,
-            'Net_Load': load_base - max(0, 1000 * (1 - abs(hour - 12) / 12))
+            "Timestamp": timestamp,
+            "Hist_Load": load_base + (i * 10),
+            "Elec_Load": load_base,
+            "Solar_kw": max(0, 1000 * (1 - abs(hour - 12) / 12)),  # Peak at noon
+            "Wind_kw": 500 + (i % 10) * 50,
+            "RF_Error": 0.0,
+            "C_Flag": 0,
+            "C_R_S": 0.0,
+            "B_SOC": 75.0 - (i * 0.5),  # Battery slowly discharging
+            "Temp": 20 + (hour / 2),
+            "Humidity": 60,
+            "S_Irr": max(0, 800 * (1 - abs(hour - 12) / 12)),
+            "Cloud": 30,
+            "W_Speed": 5.0,
+            "HPa": 1013.25,
+            "Net_Load": load_base - max(0, 1000 * (1 - abs(hour - 12) / 12)),
         }
         observations.append(obs)
 
     return observations
 
 
-
-
 @pytest.mark.integration
 def test_gridfeaturestore_integration():
     """Test the GridFeatureStore functionality that MCP server uses"""
-    print("="*70)
+    print("=" * 70)
     print("GridFeatureStore Integration Test")
-    print("="*70)
+    print("=" * 70)
 
     # Test 1: Load model features
     print("\n[1/5] Loading model features...")
@@ -81,7 +79,7 @@ def test_gridfeaturestore_integration():
         feature_store.add_observation(obs)
         if i == 0 or i == 25 or i == 48 or i == 49:
             status = "PRIMED ✓" if feature_store.is_primed else f"Need {49 - len(feature_store.buffer)} more"
-            print(f"  Observation {i+1}/50: Buffer {len(feature_store.buffer)}/49 - {status}")
+            print(f"  Observation {i + 1}/50: Buffer {len(feature_store.buffer)}/49 - {status}")
 
     # Test 4: Get inference vector
     print("\n[4/5] Generating inference vector...")
@@ -133,12 +131,13 @@ def test_gridfeaturestore_integration():
     except Exception as e:
         print(f"❌ Error during prediction: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("✅ All tests passed! GridFeatureStore integration is working.")
-    print("="*70)
+    print("=" * 70)
 
     # Summary
     print("\n📊 Summary:")

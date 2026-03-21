@@ -1,5 +1,5 @@
 services:
-  # --- THE DATA STREAM (Redpanda) ---
+  # THE DATA STREAM (Redpanda)
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
     container_name: redpanda-grid
@@ -22,7 +22,7 @@ services:
       timeout: 3s
       retries: 5
 
-  # --- THE VISUALIZER (Redpanda Console) ---
+  # THE VISUALIZER (Redpanda Console)
   console:
     image: docker.redpanda.com/redpandadata/console:latest
     container_name: redpanda-console
@@ -70,6 +70,29 @@ services:
     depends_on:
       influxdb:
         condition: service_healthy
+
+  # --- THE BATTERY GATEKEEPER (BAM Service) ---
+  bam-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bam-service
+    ports:
+      - "8000:8000"
+    command: ["python", "-m", "vpp.agents.battery_manager"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      # D1: API authentication secret — set to a strong random string in production
+      - BAM_API_KEY=${BAM_API_KEY:-changeme-in-production}
+      # C2: Physical battery parameters — override to tune without code changes
+      - BAM_CAPACITY_KWH=100000.0     # 100 MWh Virtual Megapack
+      - BAM_MAX_C_RATE=1.0            # 1C charge/discharge rate
+      - BAM_WEAR_COST=0.015           # $0.015/kWh degradation cost
+      # InfluxDB connection for state persistence (Phase A)
+      - INFLUX_CLOUD_URL=${INFLUX_CLOUD_URL}
+      - INFLUX_CLOUD_TOKEN=${INFLUX_CLOUD_TOKEN}
+      - INFLUX_CLOUD_ORG=${INFLUX_CLOUD_ORG}
+      - INFLUX_CLOUD_BUCKET=${INFLUX_CLOUD_BUCKET}
 
 volumes:
   redpanda_data:

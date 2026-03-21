@@ -12,20 +12,20 @@ load_dotenv()
 
 # Add the 'src' directory to the Python path programmatically
 # This allows the script to find the 'vpp' package inside the 'src' folder
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 # Import the new Predictor class
 from vpp.core.VPPPredictor import VPPPredictor
 
 # --- 1. CONFIGURATION ---
-MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models', 'xgb_vpp_grid.json'))
-TOPIC_NAME = 'grid-sensor-stream'
+MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "xgb_vpp_grid.json"))
+TOPIC_NAME = "grid-sensor-stream"
 
 KAFKA_CONF = {
-    'bootstrap.servers': os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'),
-    'group.id': 'ml-consumer-cloud-group',
-    'auto.offset.reset': 'earliest',
-    'broker.address.family': 'v4'
+    "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+    "group.id": "ml-consumer-cloud-group",
+    "auto.offset.reset": "earliest",
+    "broker.address.family": "v4",
 }
 
 # InfluxDB Cloud Settings (Source from env for cloud readiness)
@@ -43,6 +43,7 @@ WARNING_DROP_THRESHOLD = -20
 # This class now owns the Model, Feature Names, and Feature Store logic
 predictor = VPPPredictor(MODEL_PATH)
 
+
 # --- 3. PRESCRIPTIVE LOGIC ---
 def prescribe_action(ramp_rate):
     """
@@ -58,6 +59,7 @@ def prescribe_action(ramp_rate):
     else:
         return "NORMAL", "MONITORING"
 
+
 def run_ml_consumer():
     # Initialize Clients
     consumer = Consumer(KAFKA_CONF)
@@ -72,7 +74,7 @@ def run_ml_consumer():
 
     try:
         while True:
-            msg = consumer.poll(10.0) # Wait 10 seconds for a message
+            msg = consumer.poll(10.0)  # Wait 10 seconds for a message
             if msg is None:
                 continue
             if msg.error():
@@ -80,38 +82,44 @@ def run_ml_consumer():
                 continue
 
             # A. Parse Data
-            payload = json.loads(msg.value().decode('utf-8'))
+            payload = json.loads(msg.value().decode("utf-8"))
+            net_load = float(payload.get("Net_Load", 0))
 
             # B. Add to State and Predict
             predictor.add_observation(payload)
-            prediction_30min_change = predictor.predict()
+            prediction_curve = predictor.predict_curve(current_net_load_kw=net_load, steps=4)
 
             # C. Check if we have enough data (buffer is primed)
-            if prediction_30min_change is None:
+            if not prediction_curve:
                 cur, total = predictor.buffer_info
                 print(f"Priming buffer... ({cur}/{total})")
                 continue
 
+            # The final point in the curve is the 30-min prediction (extrapolated or directly from predict())
+            prediction_30min_change = prediction_curve[-1] - net_load
+
             # D. Metrics for Influx
-            solar = float(payload.get('Solar_kw', 0))
-            wind = float(payload.get('Wind_kw', 0))
-            net_load = float(payload.get('Net_Load', 0))
-            elec_load = float(payload.get('Elec_Load', 0))
+            solar = float(payload.get("Solar_kw", 0))
+            wind = float(payload.get("Wind_kw", 0))
+            elec_load = float(payload.get("Elec_Load", 0))
             ren_load = solar + wind
 
             # --- DECISION ENGINE ---
             severity, action = prescribe_action(prediction_30min_change)
 
             # E. Write to InfluxDB Cloud
-            point = Point("ml_predictions") \
-                .field("Solar_Output_kW", solar) \
-                .field("Wind_Output_kW", wind) \
-                .field("Electricity_Load_kW", elec_load) \
-                .field("Renewable_Load_kW", ren_load) \
-                .field("Net_Load_kW", net_load) \
-                .field("Predicted_30min_Change", prediction_30min_change) \
-                .tag("severity", severity) \
+            point = (
+                Point("ml_predictions")
+                .field("Solar_Output_kW", solar)
+                .field("Wind_Output_kW", wind)
+                .field("Electricity_Load_kW", elec_load)
+                .field("Renewable_Load_kW", ren_load)
+                .field("Net_Load_kW", net_load)
+                .field("Predicted_30min_Change", float(prediction_30min_change))
+                .field("Predicted_Curve_JSON", json.dumps(prediction_curve))
+                .tag("severity", severity)
                 .tag("recommended_action", action)
+            )
 
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
             # log(f"DEBUG: Data written to InfluxDB Cloud") # Optional: uncomment for verbose logging
