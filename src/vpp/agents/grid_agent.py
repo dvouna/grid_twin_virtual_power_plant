@@ -16,6 +16,7 @@ class GridAgent:
     """
     Autonomous Grid Agent that orchestrates VPP operations via MCP.
     """
+
     def __init__(self, server_script=None, strategy=None):
         if server_script is None:
             server_script = os.path.join(BASE_DIR, "src", "vpp", "mcp", "mcp_server.py")
@@ -35,9 +36,9 @@ class GridAgent:
                     self.session = session
                     await session.initialize()
 
-                    print("="*50)
-                    print("🤖 GRID AGENT ONLINE")
-                    print("="*50)
+                    print("=" * 50)
+                    print("GRID AGENT ONLINE")
+                    print("=" * 50)
                     print(f"Connected to MCP Server: {self.server_params.args[0]}")
 
                     while True:
@@ -45,8 +46,9 @@ class GridAgent:
                         # Sleep for simulation interval
                         await asyncio.sleep(20)
         except Exception as e:
-            print(f"❌ Agent Crash: {e}")
+            print(f"Agent Crash: {e}")
             import traceback
+
             traceback.print_exc()
 
     async def think(self):
@@ -76,11 +78,12 @@ class GridAgent:
             else:
                 for action in actions:
                     print(f"  🎬 Action: Executing {action['tool']}({action['args']})")
-                    result = await self.session.call_tool(action['tool'], action['args'])
+                    result = await self.session.call_tool(action["tool"], action["args"])
                     print(f"    └─ Response: {result.content[0].text}")
 
         except Exception as e:
             print(f"  ⚠ Thinking failed: {e}")
+
 
 if __name__ == "__main__":
     agent = GridAgent()

@@ -10,8 +10,9 @@ from starlette.responses import PlainTextResponse
 
 from vpp.core.GridFeatureStore import GridFeatureStore
 
-# ---- INITIALIZATION ----
+# Initialize MCP
 mcp = FastMCP("GridIntelligence")
+
 
 @mcp.custom_route("/health", methods=["GET"])
 async def mcp_health_check(request: Request) -> PlainTextResponse:
@@ -22,22 +23,32 @@ async def mcp_health_check(request: Request) -> PlainTextResponse:
         return PlainTextResponse("Model Not Loaded", status_code=503)
     return PlainTextResponse("OK", status_code=200)
 
+
 def log(message: str):
     """Utility to log to stderr to avoid corrupting stdio transport."""
     print(message, file=sys.stderr)
+
 
 # Graceful shutdown handler
 def sigterm_handler(_signo, _stack_frame):
     log("Received SIGTERM. Shutting down gracefully...")
     sys.exit(0)
 
+
 signal.signal(signal.SIGTERM, sigterm_handler)
 
 # Environment Variables for Cloud Run
-INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
-INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
-ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
-BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
+INFLUX_URL = os.getenv("INFLUX_CLOUD_URL")
+INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN")
+ORG = os.getenv("INFLUX_CLOUD_ORG")
+BUCKET = os.getenv("INFLUX_CLOUD_BUCKET")
+
+# Validate critical configuration
+if not all([INFLUX_URL, INFLUX_TOKEN, ORG, BUCKET]):
+    log("CRITICAL: Missing InfluxDB configuration environment variables.")
+    # We don't exit here to allow the process to start and potentially become healthy if env vars are injected later,
+    # but the health check should ideally reflect this. For now, we log the error.
+
 
 # File Paths (Absolute hooks)
 # __file__ is /app/src/vpp/mcp/mcp_server.py
@@ -64,12 +75,12 @@ if os.path.exists(abs_model_path):
     try:
         model = xgb.Booster()
         model.load_model(abs_model_path)
-        log(f"✓ Model successfully loaded from {abs_model_path}")
+        log(f"Model successfully loaded from {abs_model_path}")
     except Exception as e:
-        log(f"❌ Error loading model: {e}")
+        log(f"Error loading model: {e}")
         model = None
 else:
-    log(f"⚠ Warning: Model file NOT FOUND at {abs_model_path}")
+    log(f"Warning: Model file NOT FOUND at {abs_model_path}")
 
 # Load expected feature columns from model training
 expected_features = None
@@ -79,18 +90,19 @@ log(f"Attempting to load features from: {abs_features_path}")
 if os.path.exists(abs_features_path):
     try:
         # Using utf-8-sig to automatically handle potential Byte Order Mark (BOM)
-        with open(abs_features_path, "r", encoding='utf-8-sig') as f:
+        with open(abs_features_path, "r", encoding="utf-8-sig") as f:
             expected_features = [line.strip() for line in f if line.strip()]
-        log(f"✓ Loaded {len(expected_features)} expected features from {abs_features_path}")
+        log(f"Loaded {len(expected_features)} expected features from {abs_features_path}")
     except Exception as e:
-        log(f"❌ Error loading features: {e}")
+        log(f"Error loading features: {e}")
 else:
-    log(f"⚠ Warning: Features file NOT FOUND at {abs_features_path}")
+    log(f"Warning: Features file NOT FOUND at {abs_features_path}")
 
 # Initialize GridFeatureStore for feature engineering
 feature_store = GridFeatureStore(window_size=49, expected_columns=expected_features)
 
-# --- RESOURCES ----
+
+# Resources
 @mcp.resource("grid://current-status")
 def get_grid_status() -> str:
     """Fetches the most recent net load and renewable output from InfluxDB."""
@@ -106,7 +118,7 @@ def get_grid_status() -> str:
     return f"Current Net Load: {results.get('Net_Load_kW', 'N/A')} kW | Solar: {results.get('Renewable_Load_kW', 0)} kW"
 
 
-# --- TOOLS ---
+# Tools
 @mcp.tool()
 def add_grid_observation(
     timestamp: str,
@@ -124,7 +136,7 @@ def add_grid_observation(
     cloud: float = 0.0,
     w_speed: float = 0.0,
     hpa: float = 0.0,
-    net_load: float = 0.0
+    net_load: float = 0.0,
 ) -> str:
     """
     Adds a new grid observation to the feature store.
@@ -153,22 +165,22 @@ def add_grid_observation(
         Status message indicating success and feature store readiness
     """
     payload = {
-        'Timestamp': timestamp,
-        'Hist_Load': hist_load,
-        'Elec_Load': elec_load,
-        'Solar_kw': solar_kw,
-        'Wind_kw': wind_kw,
-        'RF_Error': rf_error,
-        'C_Flag': c_flag,
-        'C_R_S': c_r_s,
-        'B_SOC': b_soc,
-        'Temp': temp,
-        'Humidity': humidity,
-        'S_Irr': s_irr,
-        'Cloud': cloud,
-        'W_Speed': w_speed,
-        'HPa': hpa,
-        'Net_Load': net_load
+        "Timestamp": timestamp,
+        "Hist_Load": hist_load,
+        "Elec_Load": elec_load,
+        "Solar_kw": solar_kw,
+        "Wind_kw": wind_kw,
+        "RF_Error": rf_error,
+        "C_Flag": c_flag,
+        "C_R_S": c_r_s,
+        "B_SOC": b_soc,
+        "Temp": temp,
+        "Humidity": humidity,
+        "S_Irr": s_irr,
+        "Cloud": cloud,
+        "W_Speed": w_speed,
+        "HPa": hpa,
+        "Net_Load": net_load,
     }
 
     feature_store.add_observation(payload)
@@ -206,6 +218,7 @@ def predict_grid_ramp() -> str:
     except Exception as e:
         log(f" Error in get_inference_vector: {e}")
         import traceback
+
         log(traceback.format_exc())
         return f"Error: {e}"
 
@@ -226,22 +239,22 @@ def predict_grid_ramp() -> str:
     magnitude = abs(prediction)
 
     # Add context and recommendations
-    result = f"🔮 Predicted Ramp: {prediction:.2f} kW {direction}\n\n"
+    result = f"Predicted Ramp: {prediction:.2f} kW {direction}\n\n"
 
     if magnitude > 10000:  # 10 MW threshold
-        result += "⚠️ CRITICAL: Large ramp predicted! Recommend immediate battery action.\n"
+        result += "CRITICAL: Large ramp predicted! Recommend immediate battery action.\n"
         if prediction > 0:
             result += "   → Prepare battery discharge to meet rising demand."
         else:
             result += "   → Prepare battery charging with excess generation."
     elif magnitude > 5000:  # 5 MW threshold
-        result += "⚡ MODERATE: Significant ramp detected. Monitor closely.\n"
+        result += "MODERATE: Significant ramp detected. Monitor closely.\n"
         if prediction > 0:
             result += "   → Consider battery support for load increase."
         else:
             result += "   → Potential arbitrage opportunity on load decrease."
     else:
-        result += "✓ STABLE: Minor fluctuation predicted. No immediate action required."
+        result += "STABLE: Minor fluctuation predicted. No immediate action required."
 
     return result
 
@@ -260,16 +273,12 @@ def get_feature_store_status() -> str:
 
     status = "Feature Store Status:\n"
     status += f"  Buffer Size: {buffer_size}/49\n"
-    status += f"  Is Primed: {'✓ YES' if is_ready else '✗ NO'}\n"
+    status += f"  Is Primed: {'YES' if is_ready else 'NO'}\n"
 
     if not is_ready:
         status += f"  Observations Needed: {49 - buffer_size}\n"
     else:
-        feature_count = (
-            len(feature_store.expected_columns)
-            if feature_store.expected_columns
-            else 'Unknown'
-        )
+        feature_count = len(feature_store.expected_columns) if feature_store.expected_columns else "Unknown"
         status += f"  Expected Features: {feature_count}\n"
 
         # Show last observation if available
@@ -300,7 +309,7 @@ if __name__ == "__main__":
 
     if transport == "sse":
         host = os.getenv("HOST", "0.0.0.0")  # nosec B104
-        log(f"🚀 Starting MCP Server on port {port} on {host} via SSE...")
+        log(f"Starting MCP Server on port {port} on {host} via SSE...")
         mcp.run(transport="sse", host=host, port=port)
     else:
         # Standard input/output for local Claude Desktop use

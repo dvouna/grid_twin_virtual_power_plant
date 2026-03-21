@@ -7,14 +7,14 @@ from vpp.ml.inference import prepare_features
 def test_prepare_features_basic():
     # Setup dummy data
     data = {
-        'Timestamp': pd.date_range(start='2026-01-01', periods=50, freq='5min'),
-        'net_load': np.random.rand(50) * 100,
-        'solar': np.random.rand(50) * 10,
-        'temperature': np.random.rand(50) * 30,
-        'wind': np.random.rand(50) * 5,
-        'pressure': np.random.rand(50) + 1000,
-        'hour': np.random.randint(0, 24, 50),
-        'day_of_week': np.random.randint(0, 7, 50)
+        "Timestamp": pd.date_range(start="2026-01-01", periods=50, freq="5min"),
+        "net_load": np.random.rand(50) * 100,
+        "solar": np.random.rand(50) * 10,
+        "temperature": np.random.rand(50) * 30,
+        "wind": np.random.rand(50) * 5,
+        "pressure": np.random.rand(50) + 1000,
+        "hour": np.random.randint(0, 24, 50),
+        "day_of_week": np.random.randint(0, 7, 50),
     }
     df = pd.DataFrame(data)
 
@@ -23,7 +23,7 @@ def test_prepare_features_basic():
         "rolling_windows": [3],
         "use_interactions": True,
         "use_cyclical": True,
-        "feature_list": ["hour_sin", "hour_cos", "net_load_lag_1"]
+        "feature_list": ["hour_sin", "hour_cos", "net_load_lag_1"],
     }
 
     # Run function

@@ -1,8 +1,19 @@
-# Python & Build
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -119,7 +130,7 @@ model_features_repr.txt
 model_features_utf8.txt
 integration_test_debug*.log
 test_output*.log
-build_log.txt
+build_log*.txt
 ruff_errors.txt
 
 # Secrets & Config
@@ -132,3 +143,66 @@ cloudbuild.yaml.deprecated
 .agent/
 .gemini/
 .venv_backup/
+
+# IDE & Editor (ensure .vscode is caught)
+.vscode/
+
+# Notebooks (including misspelled extensions)
+*.ipynb
+*.ipnyb
+notebooks/
+
+# Debug & Research Scripts (not for production)
+check_alignment.py
+reproduce_bug.py
+verify_vpp_predictor.py
+diagnose_xgb.py
+mock_consumer.py
+test_kafka.py
+scripts/compare_features_v2.py
+scripts/export_features.py
+scripts/inspect_model.py
+scripts/inspect_model_deep.py
+scripts/model_inspection_output.txt
+
+# Legacy / Deprecated Files
+consumer_prescriptive.py
+docker-compose.test.yml
+service.yaml
+GridFeature.txt
+docs/GridFeature.txt
+model_features.txt
+
+# Research Model Files (keep only production model)
+models/xgb_smg.ubj
+models/xgboost_smart_ml.ubj
+models/xgb_vpp_forecast.json
+models/test_scenarios.json
+
+# ── Additions (Phase D audit) ─────────────────────────────────────────────
+
+# Screenshot & UI artifacts dumped in repo root
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+!dashboard/**/*.png
+
+# Runtime-generated server / process identity files
+server_user_id.txt
+
+# Research text outputs (bare name variants not caught by wildcard prefix)
+clean_features.txt
+clean_features_utf8.txt
+model_features_list.json
+
+# OS-level artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Large raw dataset CSVs (tracked by *.csv rule but explicitly named for clarity)
+elec_co.csv
+elec_en.csv
+smart_data.csv
+smart_grid_data.csv

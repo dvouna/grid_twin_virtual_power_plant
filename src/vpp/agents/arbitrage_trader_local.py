@@ -1,78 +1,116 @@
 import time
+import json
+
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-# InfluxDB Settings
+from vpp.agents.battery_manager import BatteryManagementAgent
+
+# InfluxDB Local Settings
 INFLUX_URL = "http://localhost:8086"
 INFLUX_TOKEN = "smg!indb25"
 INFLUX_ORG = "myorg"
 INFLUX_BUCKET = "energy"
 
-# --- BATTERY SPECS ---
-MAX_CAPACITY_kWH = 100.0  # Total size of your "Virtual Megapack"
-current_soc_kWH = 50.0    # Start at 50% charge
-charge_efficiency = 0.9   # 10% loss during charging
+# --- BATTERY SPECS (kW/kWh) ---
+MAX_CAPACITY_kWH = 100000.0  # Total size of "Virtual Megapack" (100 MWh = 100,000 kWh)
 
-def run_arbitrage_trader(): 
-    global current_soc_kWH
+def run_arbitrage_trader():
+    # Initialize the BAM Gatekeeper
+    bam_agent = BatteryManagementAgent(
+        capacity_kwh=MAX_CAPACITY_kWH,
+        max_c_rate=1.0, 
+        base_wear_cost_per_kwh=0.015
+    )
+    # Set starting SoC to 50%
+    bam_agent.current_soc_kwh = MAX_CAPACITY_kWH * 0.50
+
     client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     query_api = client.query_api()
     write_api = client.write_api(write_options=SYNCHRONOUS)
 
-    print("💰 Arbitrage Trader is active. Optimization engine running...")
+    print("💰 Arbitrage Trader (LOCAL) is active. Optimization engine running...")
 
     try:
         while True:
-            # 1. Pull the latest ML Prediction
+            # 1. Pull the latest ML Prediction (Using 2m range for local speed)
             query = f'from(bucket: "{INFLUX_BUCKET}") \
                       |> range(start: -2m) \
                       |> filter(fn: (r) => r["_measurement"] == "ml_predictions") \
                       |> last()'
-            
+
             tables = query_api.query(query)
             predicted_change = 0.0
-            
+            predicted_curve_json = None
+
             for table in tables:
                 for record in table.records:
                     if record.get_field() == "Predicted_30min_Change":
-                        predicted_change = record.get_value()
+                        predicted_change = float(record.get_value())
+                    elif record.get_field() == "Predicted_Curve_JSON":
+                        predicted_curve_json = record.get_value()
+
+            predicted_curve = []
+            if predicted_curve_json:
+                predicted_curve = json.loads(predicted_curve_json)
 
             # 2. Trading Decision Logic
             trade_action = "HOLD"
-            trade_volume_kw = 0.0
+            requested_kw = 0.0
+            approved_kw = 0.0
             profit_loss = 0.0
-            
-            # --- BUY (Charging during surplus) ---
-            if predicted_change > 20 and current_soc_kWH < (MAX_CAPACITY_kWH * 0.9):
-                trade_action = "BUY"
-                trade_volume_kw = 0.020 # Charging at 20MW rate
-                # We buy at a low "surplus" price ($10/MWh)
-                cost = (trade_volume_kw) * 0.010 
-                current_soc_kWH += (trade_volume_kw) * charge_efficiency
-                profit_loss = -cost # Initial outlay
+            duration_hours = 5 / 60.0  # 5-minute dispatch cycle
 
-            # --- SELL (Discharging during shortage) ---
-            elif predicted_change < -20 and current_soc_kWH > (MAX_CAPACITY_kWH * 0.1):
-                trade_action = "SELL"
-                trade_volume_kw = 0.020 # Discharging at 20MW rate
-                # We sell at a high "shortage" price ($150/MWh)
-                revenue = (trade_volume_kw) * 0.150 
-                current_soc_kWH -= (trade_volume_kw)
-                profit_loss = revenue
+            # --- AI PRE-CONDITIONING (Safety overrides economics) ---
+            pre_condition_kw = bam_agent.pre_condition(predicted_curve)
+            
+            if pre_condition_kw > 0.0:
+                trade_action = "PRE-CHARGE"
+                approved_kw = pre_condition_kw
+                profit_loss = 0.0 # Absorbed as a safety cost
+                print("BAM Agent Triggered AI Pre-Conditioning ahead of severe ramp!")
+            else:
+                # --- NORMAL TRADING ---
+                # --- BUY (Charging during surplus) ---
+                if predicted_change > 20 and bam_agent.soc_percentage < 0.90:
+                    requested_kw = 20000.0 # Charging at 20MW rate (20,000 kW)
+                    # We buy at a low "surplus" price ($10/MWh = $0.010/kWh)
+                    cost = (requested_kw * duration_hours) * 0.010
+                    expected_profit = 0.0 # Just charging, no immediate profit
+                    
+                    # Ask BAM for permission
+                    approved_kw = bam_agent.evaluate_request("ArbitrageTrader", requested_kw, duration_hours, expected_revenue=0.0)
+                    
+                    if approved_kw > 0:
+                        trade_action = "BUY"
+                        profit_loss = -((approved_kw * duration_hours) * 0.010)
+
+                # --- SELL (Discharging during shortage) ---
+                elif predicted_change < -20 and bam_agent.soc_percentage > 0.10:
+                    requested_kw = -20000.0 # Discharging at 20MW rate (-20,000 kW)
+                    # We sell at a high "shortage" price ($150/MWh = $0.150/kWh)
+                    expected_revenue = abs(requested_kw * duration_hours) * 0.150
+                    
+                    # Ask BAM for permission, factoring in expected revenue against degradation
+                    approved_kw = bam_agent.evaluate_request("ArbitrageTrader", requested_kw, duration_hours, expected_revenue=expected_revenue)
+                    
+                    if approved_kw < 0:
+                        trade_action = "SELL"
+                        profit_loss = abs(approved_kw * duration_hours) * 0.150
 
             # 3. Log Trade to InfluxDB
             point = Point("trading_log") \
-                .field("soc_kwh", current_soc_kWH) \
-                .field("trade_volume", trade_volume_kw) \
+                .field("soc_kwh", bam_agent.current_soc_kwh) \
+                .field("trade_volume", approved_kw) \
                 .field("realized_pnl", profit_loss) \
                 .tag("trade_action", trade_action)
-            
+
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
 
             if trade_action != "HOLD":
-                print(f"📉 [TRADE] {trade_action} {trade_volume_kw }kW | SoC: {current_soc_kWH:.2f}kWh")
+                print(f"📉 [TRADE] {trade_action} {abs(approved_kw):.0f}kW | SoC: {bam_agent.current_soc_kwh:.2f}kWh | PnL: ${profit_loss:.2f}")
 
-            time.sleep(10) # Run trading cycle every 5 seconds
+            time.sleep(10) # Run trading cycle every 10 seconds
 
     except Exception as e:
         print(f"Trader Error: {e}")

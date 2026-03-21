@@ -12,3 +12,7 @@ pytest-mock
 pytest-asyncio
 setuptools<81
 starlette
+fastapi
+uvicorn
+requests
+tenacity
