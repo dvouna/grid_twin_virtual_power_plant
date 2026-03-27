@@ -392,17 +392,23 @@ jobs:
           workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
+      - name: Build Dashboard Image (Staging)
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}-stage"
+          gcloud builds submit . \
+            --config=cloudbuild.dashboard.yaml \
+            --substitutions=_IMAGE=${IMAGE}
+          echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
+
       - name: Deploy Dashboard to Cloud Run (Staging)
         id: deploy-dash-stage
         uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: vpp-dashboard-stage
           region: ${{ env.REGION }}
-          source: .
-          build_pack: dockerfile
+          image: ${{ env.DASHBOARD_IMAGE }}
           timeout: "300s"
           flags: >-
-            --dockerfile=Dockerfile.dashboard
             --memory=512Mi
             --cpu=1
             --concurrency=20
@@ -446,17 +452,23 @@ jobs:
           workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
+      - name: Build Dashboard Image (Production)
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}"
+          gcloud builds submit . \
+            --config=cloudbuild.dashboard.yaml \
+            --substitutions=_IMAGE=${IMAGE}
+          echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
+
       - name: Deploy Dashboard to Cloud Run (Production)
         id: deploy-dash-prod
         uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: vpp-dashboard
           region: ${{ env.REGION }}
-          source: .
-          build_pack: dockerfile
+          image: ${{ env.DASHBOARD_IMAGE }}
           timeout: "300s"
           flags: >-
-            --dockerfile=Dockerfile.dashboard
             --memory=512Mi
             --cpu=1
             --concurrency=20
