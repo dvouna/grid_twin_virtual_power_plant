@@ -13,10 +13,16 @@ Consumes typed AgentEvent dicts from run_agent() and renders each type:
 
 import asyncio
 import os
+import sys
+from pathlib import Path
+
+# Add project root to sys.path so 'dashboard.*' imports work from Streamlit pages
+_project_root = str(Path(__file__).resolve().parent.parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 import nest_asyncio
 import streamlit as st
-
 from dashboard.gemini_agent import run_agent
 from dashboard.mcp_client import check_server_health, get_prompt, list_prompts
 
@@ -60,20 +66,13 @@ def _run_and_render(prompt: str, history: list[dict]) -> str:
                     status_box.write(f"⚙️ {event['msg']}")
 
                 elif etype == "tool_start":
-                    args_preview = ", ".join(
-                        f"{k}={v!r}" for k, v in list(event["args"].items())[:3]
-                    )
-                    status_box.write(
-                        f"🔧 **Calling** `{event['name']}`({args_preview}…)"
-                    )
+                    args_preview = ", ".join(f"{k}={v!r}" for k, v in list(event["args"].items())[:3])
+                    status_box.write(f"🔧 **Calling** `{event['name']}`({args_preview}…)")
 
                 elif etype == "tool_end":
                     tool_traces.append(event)
                     icon = "✅" if event["ok"] else "❌"
-                    status_box.write(
-                        f"{icon} `{event['name']}` returned "
-                        f"({len(event['result'])} chars)"
-                    )
+                    status_box.write(f"{icon} `{event['name']}` returned ({len(event['result'])} chars)")
 
                 elif etype == "text":
                     full_response += event["chunk"]
@@ -96,9 +95,7 @@ def _run_and_render(prompt: str, history: list[dict]) -> str:
 
     # Agent trace expander — only shown when tools were called
     if tool_traces:
-        with st.expander(
-            f"🔍 Agent Trace — {len(tool_traces)} tool call(s)", expanded=False
-        ):
+        with st.expander(f"🔍 Agent Trace — {len(tool_traces)} tool call(s)", expanded=False):
             for i, trace in enumerate(tool_traces, start=1):
                 icon = "✅" if trace["ok"] else "❌"
                 st.markdown(f"**{i}. {icon} `{trace['name']}`**")
@@ -222,7 +219,6 @@ for message in st.session_state.messages:
 
 # ---------------------------------------------------------------------------
 # Quick-action prompt injection
-# ---------------------------------------------------------------------------
 quick_prompt_name = st.session_state.pop("pending_quick_prompt", None)
 if quick_prompt_name:
     with st.spinner(f"Fetching MCP prompt `{quick_prompt_name}`…"):
@@ -236,9 +232,7 @@ if quick_prompt_name:
                 ),
                 "feature_store_check": "What is the current status of the feature store buffer?",
             }
-            injected_text = fallback_texts.get(
-                quick_prompt_name, f"Run the '{quick_prompt_name}' analysis."
-            )
+            injected_text = fallback_texts.get(quick_prompt_name, f"Run the '{quick_prompt_name}' analysis.")
 
     st.chat_message("user").markdown(f"*[Quick Action]* {injected_text}")
     st.session_state.messages.append({"role": "user", "content": injected_text})
@@ -250,9 +244,7 @@ if quick_prompt_name:
     st.session_state.messages.append({"role": "assistant", "content": response_text})
 
 
-# ---------------------------------------------------------------------------
 # Manual chat input
-# ---------------------------------------------------------------------------
 if prompt := st.chat_input("Ask about grid stability, predict load, or check agent logs…"):
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})

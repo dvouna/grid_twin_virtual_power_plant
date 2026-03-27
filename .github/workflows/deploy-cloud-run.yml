@@ -2,7 +2,7 @@ name: Deploy to Cloud Run
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: ["main", "develop"]
 
 env:
   REGION: us-central1
@@ -23,8 +23,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -34,17 +34,21 @@ jobs:
       - name: Run Ruff Linter
         run: ruff check . --output-format=github
 
-      - name: Run Bandit Security Scan  
+      - name: Run Bandit Security Scan
         run: bandit -r src/vpp/mcp/ src/vpp/core/ src/vpp/ml/ src/vpp/agents/arbitrage_trader.py src/vpp/agents/grid_response_actor.py src/vpp/agents/battery_manager.py scripts/producer.py scripts/consumer_ml.py -ll
 
       - name: Run Pytest with Coverage
         env:
           PYTHONPATH: src
         run: pytest -m "not integration" -v --cov=src --cov-report=term-missing
-      
+
       - name: Validate Docker Build
         run: |
           docker build -t vpp-mcp-server:test .
+
+      - name: Validate Dashboard Docker Build
+        run: |
+          docker build -f Dockerfile.dashboard -t vpp-dashboard:test .
 
   deploy-staging:
     name: Deploy to Staging
@@ -53,18 +57,18 @@ jobs:
     environment: staging
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Google Auth
-        uses: 'google-github-actions/auth@v2'
+        uses: "google-github-actions/auth@v2"
         with:
-          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
-          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+          workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
+          service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Verify Model Presence
         run: |
@@ -78,12 +82,12 @@ jobs:
 
       - name: Deploy to Cloud Run (Staging)
         id: deploy
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: vpp-mcp-server-stage
           region: ${{ env.REGION }}
           source: .
-          timeout: '300s'
+          timeout: "300s"
           flags: --memory=1Gi --cpu=1 --cpu-boost --concurrency=10 --max-instances=5 --timeout=60s --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=15,periodSeconds=10,failureThreshold=3 --liveness-probe=httpGet.path=/health,httpGet.port=8080,periodSeconds=30,failureThreshold=3 --no-allow-unauthenticated
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
@@ -96,12 +100,12 @@ jobs:
       # Phase 3: Deploy BAM Service FIRST — actors depend on it being reachable
       - name: Deploy BAM Service (Staging)
         id: deploy-bam-stage
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: bam-service-stage
           region: ${{ env.REGION }}
           source: .
-          timeout: '300s'
+          timeout: "300s"
           flags: >-
             --command=python,-m,vpp.agents.battery_manager
             --memory=512Mi
@@ -144,7 +148,7 @@ jobs:
           exit 1
 
       - name: Deploy Consumer ML Job (Staging)
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           job: consumer-ml-stage
           region: ${{ env.REGION }}
@@ -158,7 +162,7 @@ jobs:
             KAFKA_BOOTSTRAP_SERVERS=KAFKA_BOOTSTRAP_SERVERS:latest
 
       - name: Deploy Arbitrage Trader Job (Staging)
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           job: arbitrage-trader-stage
           region: ${{ env.REGION }}
@@ -174,7 +178,7 @@ jobs:
             BAM_API_URL=${{ steps.deploy-bam-stage.outputs.url }}
 
       - name: Deploy Grid Response Actor Job (Staging)
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           job: grid-response-stage
           region: ${{ env.REGION }}
@@ -211,18 +215,18 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Google Auth
-        uses: 'google-github-actions/auth@v2'
+        uses: "google-github-actions/auth@v2"
         with:
-          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
-          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+          workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
+          service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Verify Model Presence
         run: |
@@ -236,12 +240,12 @@ jobs:
 
       - name: Deploy to Cloud Run (Production)
         id: deploy
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: vpp-mcp-server
           region: ${{ env.REGION }}
           source: .
-          timeout: '300s'
+          timeout: "300s"
           flags: --memory=1Gi --cpu=1 --cpu-boost --concurrency=10 --min-instances=1 --max-instances=20 --timeout=60s --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=15,periodSeconds=10,failureThreshold=3 --liveness-probe=httpGet.path=/health,httpGet.port=8080,periodSeconds=30,failureThreshold=3 --no-allow-unauthenticated
           secrets: |-
             INFLUX_CLOUD_URL=INFLUX_CLOUD_URL:latest
@@ -254,12 +258,12 @@ jobs:
       # Phase 3: Deploy BAM Service FIRST — actors depend on it being reachable
       - name: Deploy BAM Service (Production)
         id: deploy-bam-prod
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: bam-service-prod
           region: ${{ env.REGION }}
           source: .
-          timeout: '300s'
+          timeout: "300s"
           flags: >-
             --command=python,-m,vpp.agents.battery_manager
             --memory=512Mi
@@ -302,7 +306,7 @@ jobs:
           exit 1
 
       - name: Deploy Consumer ML Job (Production)
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           job: consumer-ml-prod
           region: ${{ env.REGION }}
@@ -316,7 +320,7 @@ jobs:
             KAFKA_BOOTSTRAP_SERVERS=KAFKA_BOOTSTRAP_SERVERS:latest
 
       - name: Deploy Arbitrage Trader Job (Production)
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           job: arbitrage-trader-prod
           region: ${{ env.REGION }}
@@ -332,7 +336,7 @@ jobs:
             BAM_API_URL=${{ steps.deploy-bam-prod.outputs.url }}
 
       - name: Deploy Grid Response Actor Job (Production)
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           job: grid-response-prod
           region: ${{ env.REGION }}
@@ -375,28 +379,28 @@ jobs:
     environment: staging
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Google Auth
-        uses: 'google-github-actions/auth@v2'
+        uses: "google-github-actions/auth@v2"
         with:
-          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
-          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+          workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
+          service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Deploy Dashboard to Cloud Run (Staging)
         id: deploy-dash-stage
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: vpp-dashboard-stage
           region: ${{ env.REGION }}
           source: .
           build_pack: dockerfile
-          timeout: '300s'
+          timeout: "300s"
           flags: >-
             --dockerfile=Dockerfile.dashboard
             --memory=512Mi
@@ -429,28 +433,28 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Google Auth
-        uses: 'google-github-actions/auth@v2'
+        uses: "google-github-actions/auth@v2"
         with:
-          workload_identity_provider: '${{ env.WIF_PROVIDER_NAME }}'
-          service_account: '${{ env.GCP_SERVICE_ACCOUNT }}'
+          workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
+          service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Deploy Dashboard to Cloud Run (Production)
         id: deploy-dash-prod
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+        uses: "google-github-actions/deploy-cloudrun@v2"
         with:
           service: vpp-dashboard
           region: ${{ env.REGION }}
           source: .
           build_pack: dockerfile
-          timeout: '300s'
+          timeout: "300s"
           flags: >-
             --dockerfile=Dockerfile.dashboard
             --memory=512Mi

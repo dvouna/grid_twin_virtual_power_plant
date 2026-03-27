@@ -7,14 +7,14 @@ from influxdb_client import InfluxDBClient
 
 st.set_page_config(page_title="Grid Status", page_icon="⚡", layout="wide")
 
-st.title("🔋 Real-time Grid Status")
+st.title("⚡ Atlas AVT VPP Grid Status")
 st.subheader("Telemetry & Load Forecasting")
 
 # Connection Logic
-URL = os.getenv("INFLUX_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
-TOKEN = os.getenv("INFLUX_TOKEN")
-ORG = os.getenv("INFLUX_ORG")
-BUCKET = os.getenv("INFLUX_BUCKET")
+URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
+TOKEN = os.getenv("INFLUX_CLOUD_TOKEN")
+ORG = os.getenv("INFLUX_CLOUD_ORG")
+BUCKET = os.getenv("INFLUX_CLOUD_BUCKET")
 
 
 @st.cache_data(ttl=10)  # Refresh data every 10 seconds
@@ -22,7 +22,7 @@ def fetch_grid_data():
     client = InfluxDBClient(url=URL, token=TOKEN, org=ORG)
     query_api = client.query_api()
 
-    query = f'from(bucket: "{BUCKET}") |> range(start: -1h) |> filter(fn: (r) => r["_measurement"] == "grid_telemetry")'
+    query = f'from(bucket: "{BUCKET}") |> range(start: -1h) |> filter(fn: (r) => r["_measurement"] == "ml_predictions")'
     tables = query_api.query(query)
 
     data = []
@@ -43,30 +43,37 @@ try:
         st.warning("No live data found in the last hour. The grid telemetry stream may be down.", icon="⚠️")
     else:
         # --- KPI Section ---
-        col1, col2, col3 = st.columns(3)
-        net_load_data = df[df["field"] == "net_load"]
+        col1, col2, col3, col4, col5 = st.columns(5)
 
-        if len(net_load_data) >= 2:
-            latest_load = net_load_data["value"].iloc[-1]
-            prev_load = net_load_data["value"].iloc[-2]
-            delta = latest_load - prev_load
-        elif len(net_load_data) == 1:
-            latest_load = net_load_data["value"].iloc[-1]
-            delta = 0.0
-        else:
-            latest_load = 0.0
-            delta = 0.0
+        def extract_latest(field_name):
+            field_data = df[df["field"].str.lower() == field_name.lower()]
+            if len(field_data) >= 2:
+                latest = field_data["value"].iloc[-1]
+                delta = latest - field_data["value"].iloc[-2]
+                return latest, delta
+            elif len(field_data) == 1:
+                return field_data["value"].iloc[-1], 0.0
+            return 0.0, 0.0
+
+        latest_load, load_delta = extract_latest("Net_Load_kW")
+        latest_solar, solar_delta = extract_latest("Solar_Output_kW")
+        latest_wind, wind_delta = extract_latest("Wind_Output_kW")
 
         with col1:
-            st.metric("Current Net Load", f"{latest_load:.2f} MW", f"{delta:.2f} MW")
+            st.metric("Current Net Load", f"{latest_load:.2f} kW", f"{load_delta:.2f} kW")
         with col2:
-            status = "STABLE" if abs(delta) < 40 else "WARNING"
-            st.metric("Grid Stability", status)
+            st.metric("Solar Output", f"{latest_solar:.2f} kW", f"{solar_delta:.2f} kW")
         with col3:
+            st.metric("Wind Output", f"{latest_wind:.2f} kW", f"{wind_delta:.2f} kW")
+        with col4:
+            status = "STABLE" if abs(load_delta) < 40 else "WARNING"
+            st.metric("Grid Stability", status)
+        with col5:
             st.metric("Active Nodes", "12 Units")
 
         # --- Chart Section ---
         st.markdown("### Grid Heartbeat (Last 60 Minutes)")
+        net_load_data = df[df["field"] == "Net_Load_kW"]
         fig = px.line(net_load_data, x="time", y="value", template="plotly_dark", color_discrete_sequence=["#00ffcc"])
         fig.update_layout(yaxis_title="Net Load (MW)", xaxis_title="Time")
         st.plotly_chart(fig, use_container_width=True)

@@ -7,7 +7,7 @@
 **Real-time grid intelligence powered by ML, streaming data, and autonomous agents**
 
 [![CI/CD Pipeline](https://img.shields.io/github/actions/workflow/status/dvouna/grid_twin_virtual_power_plant-/deploy-cloud-run.yml?label=CI%2FCD&logo=github-actions&logoColor=white)](https://github.com/dvouna/grid_twin_virtual_power_plant-/actions)
-[![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Cloud Run](https://img.shields.io/badge/Google_Cloud-Run-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/run)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-production-success?logo=statuspage&logoColor=white)](#-system-architecture)
@@ -38,7 +38,7 @@ SmartGrid-AI is a production-ready **Virtual Power Plant (VPP)** platform that t
 ### 🧠 **AI-Powered Decision Engine**
 
 - MCP-based "brain" hosted on Cloud Run
-- Natural language interface via Claude Desktop
+- Natural language AI Copilot via **Gemini + MCP**
 - Autonomous reasoning and tool execution
 - Real-time load forecasting and anomaly detection
 
@@ -62,6 +62,7 @@ SmartGrid-AI is a production-ready **Virtual Power Plant (VPP)** platform that t
 - **Grid Response Actor** – Dispatch batteries to stabilize frequency
 - **Arbitrage Trader** – Execute charge/discharge cycles for profit
 - **Predictive Consumer** – ML-driven load forecasting
+- **Battery Manager (BAM)** – Gatekeeper protecting battery health & SoC
 
 </td>
 <td width="50%">
@@ -72,6 +73,18 @@ SmartGrid-AI is a production-ready **Virtual Power Plant (VPP)** platform that t
 - Workload Identity Federation (WIF) security
 - Secret management via GCP Secret Manager
 - Automated health checks and rollbacks
+
+</td>
+</tr>
+<tr>
+<td width="100%" colspan="2">
+
+### 📊 **Streamlit Dashboard**
+
+- **Grid Status** — Live net load, solar & wind telemetry from InfluxDB Cloud
+- **Energy Trader** — Arbitrage revenue & battery cycle visualisation
+- **Agent Operations** — Real-time dispatch log & battery State of Charge
+- **AI Assistant** — Natural language chat powered by Gemini 1.5 Flash + MCP tools
 
 </td>
 </tr>
@@ -149,10 +162,11 @@ graph TD
 
 ### Prerequisites
 
-- **Python 3.11+**
-- **InfluxDB** (local or cloud)
+- **Python 3.10+** (3.14 recommended — required for `mcp` package)
+- **InfluxDB Cloud** account
 - **Redpanda/Kafka** (optional, for streaming)
 - **GCP Account** (for Cloud Run deployment)
+- **Google AI Studio API Key** (for Gemini AI Copilot)
 
 ### Installation
 
@@ -169,20 +183,45 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### Environment Variables
+
+Copy `.env.example` to `.env` and fill in your credentials:
+
+| Variable | Description | Default |
+|:---------|:------------|:--------|
+| `INFLUX_CLOUD_URL` | InfluxDB Cloud endpoint | — |
+| `INFLUX_CLOUD_TOKEN` | InfluxDB authentication token | — |
+| `INFLUX_CLOUD_ORG` | InfluxDB organization name | — |
+| `INFLUX_CLOUD_BUCKET` | InfluxDB bucket name | `energy` |
+| `BAM_API_KEY` | Battery Asset Manager API secret | `changeme-in-production` |
+| `GEMINI_API_KEY` | Google AI Studio key for AI Copilot | — |
+| `GEMINI_MODEL` | Gemini model name | `gemini-1.5-flash` |
+| `MCP_SERVER_URL` | MCP server URL | `http://localhost:8080` |
+
+Get a free Gemini API key at [aistudio.google.com](https://aistudio.google.com/app/apikey).
+
 ### Running Locally
 
+> ⚠️ **Important:** Always use the `.venv` Python to run scripts. The `mcp` package requires Python 3.10+ and will fail if the system Python is older.
+
 ```powershell
-# 1. Start the MCP Server (The Brain)
+# 1. Start the Battery Asset Manager (BAM)
 $env:PYTHONPATH="src"
+python src/vpp/agents/battery_manager.py
+
+# 2. Start the MCP Server (The Brain)
 python src/vpp/mcp/mcp_server.py
 
-# 2. Start Autonomous Agents (in separate terminals)
-python -m vpp.agents.grid_response_actor
-python -m vpp.agents.arbitrage_trader
+# 3. Start Autonomous Agents (in separate terminals)
+python src/vpp/agents/grid_response_actor.py
+python src/vpp/agents/arbitrage_trader.py
 
-# 3. Start Data Pipeline
+# 4. Start Data Pipeline
 python scripts/producer.py
 python scripts/consumer_ml.py
+
+# 5. Start the Streamlit Dashboard (must use venv Streamlit)
+.venv\Scripts\streamlit run dashboard\app.py
 ```
 
 ### Deploying to Cloud Run
@@ -211,18 +250,28 @@ grid_twin_virtual_power_plant-/
 │   │   ├── GridFeatureStore.py  # Feature engineering
 │   │   └── VPPPredictor.py  # Unified ML inference
 │   ├── agents/              # Autonomous control agents
+│   │   ├── battery_manager.py   # BAM microservice (FastAPI)
 │   │   ├── grid_response_actor.py
 │   │   └── arbitrage_trader.py
 │   └── mcp/                 # MCP server (the "brain")
 │       └── mcp_server.py
+├── dashboard/               # Streamlit web dashboard
+│   ├── app.py               # Main entry point
+│   ├── gemini_agent.py      # Gemini + MCP agentic loop
+│   ├── mcp_client.py        # MCP HTTP client
+│   └── pages/
+│       ├── Grid_Status.py   # Live telemetry & forecasts
+│       ├── Energy_Trader.py # Arbitrage performance
+│       ├── Agent_Operations.py # Dispatch log & SoC
+│       └── AI_Assistant.py  # Gemini AI Copilot chat
 ├── scripts/                 # Operational scripts
 │   ├── producer.py          # Data ingestion simulation
-│   ├── consumer_ml.py       # ML inference consumer
-│   └── consumer_prescriptive.py # Rule-based consumer
+│   └── consumer_ml.py       # ML inference consumer
 ├── tests/                   # Unit & integration tests
 ├── models/                  # Trained ML models
 ├── data/                    # Historical grid data
-├── Dockerfile               # Container definition
+├── Dockerfile               # MCP server container
+├── Dockerfile.dashboard     # Dashboard container
 └── requirements.txt         # Python dependencies
 ```
 
@@ -267,6 +316,10 @@ Rolling buffer (50 observations) captures momentum:
 | **Security** | Workload Identity Federation, Secret Manager |
 | **Storage** | InfluxDB Cloud (Time-Series DB) |
 | **ML/AI** | XGBoost, Scikit-Learn, FastMCP |
+| **AI Copilot** | Google Gemini 1.5 Flash + MCP |
+| **Dashboard** | Streamlit |
+| **Agent API** | FastAPI + Uvicorn (BAM microservice) |
+| **Resilience** | Tenacity (exponential backoff retries) |
 | **CI/CD** | GitHub Actions |
 | **Monitoring** | Grafana, Cloud Logging |
 
@@ -356,10 +409,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - **Google Cloud Platform** – Cloud Run, Secret Manager, Workload Identity
+- **Google DeepMind** – Gemini 1.5 Flash AI and MCP integration
 - **Redpanda** – High-performance streaming platform
 - **InfluxDB** – Time-series database
-- **Anthropic** – Claude AI and MCP protocol
 - **XGBoost** – Gradient boosting framework
+- **Streamlit** – Dashboard UI framework
 
 ---
 

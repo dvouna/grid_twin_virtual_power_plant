@@ -20,3 +20,4 @@ fastapi
 uvicorn
 requests
 tenacity
+google-generativeai

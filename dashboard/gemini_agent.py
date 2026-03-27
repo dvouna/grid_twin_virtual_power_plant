@@ -39,15 +39,18 @@ from dashboard.mcp_client import call_tool, fetch_tools, get_prompt, list_prompt
 
 logger = logging.getLogger(__name__)
 
+
 # ── Cloud Logging audit client (optional — only available on GCP) ─────────────
 def _make_audit_logger():
     """Return a google.cloud.logging logger, or None if unavailable."""
     try:
         import google.cloud.logging as gcp_logging
+
         client = gcp_logging.Client()
         return client.logger("vpp-copilot-audit")
     except Exception:
         return None
+
 
 _AUDIT_LOGGER = _make_audit_logger()
 
@@ -69,7 +72,8 @@ def _audit_log(payload: dict) -> None:
         except Exception as exc:  # pragma: no cover
             logger.warning(f"Cloud Logging write failed: {exc}")
     else:
-        logger.info(f"[AUDIT] {json.dumps(payload)}") 
+        logger.info(f"[AUDIT] {json.dumps(payload)}")
+
 
 # --- Configuration ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -202,8 +206,7 @@ async def run_agent(
 
     yield {
         "type": "status",
-        "msg": f"Connected — {len(mcp_tools)} tool(s) available: "
-               + ", ".join(f"`{t.name}`" for t in mcp_tools),
+        "msg": f"Connected — {len(mcp_tools)} tool(s) available: " + ", ".join(f"`{t.name}`" for t in mcp_tools),
     }
 
     gemini_tools = [_mcp_tool_to_gemini(t) for t in mcp_tools]
@@ -239,9 +242,7 @@ async def run_agent(
 
         yield {"type": "status", "msg": f"Thinking… (iteration {iteration + 1})"}
 
-        response: GenerateContentResponse = await asyncio.to_thread(
-            chat.send_message, current_message
-        )
+        response: GenerateContentResponse = await asyncio.to_thread(chat.send_message, current_message)
 
         candidate = response.candidates[0]
         parts = candidate.content.parts
@@ -262,13 +263,15 @@ async def run_agent(
                         yield {"type": "text", "chunk": word + separator}
 
             # ── Audit log ────────────────────────────────────────────────────
-            _audit_log({
-                "prompt": user_prompt[:500],
-                "model": GEMINI_MODEL,
-                "iterations": iteration + 1,
-                "tools_called": audit_tools_called,
-                "response_preview": final_response_text[:500],
-            })
+            _audit_log(
+                {
+                    "prompt": user_prompt[:500],
+                    "model": GEMINI_MODEL,
+                    "iterations": iteration + 1,
+                    "tools_called": audit_tools_called,
+                    "response_preview": final_response_text[:500],
+                }
+            )
             return
 
         # ── Rate limiting guard ──────────────────────────────────────────────
@@ -281,13 +284,15 @@ async def run_agent(
                 "Please start a new question."
             )
             yield {"type": "error", "msg": msg}
-            _audit_log({
-                "prompt": user_prompt[:500],
-                "model": GEMINI_MODEL,
-                "iterations": iteration + 1,
-                "tools_called": audit_tools_called,
-                "rate_limited": True,
-            })
+            _audit_log(
+                {
+                    "prompt": user_prompt[:500],
+                    "model": GEMINI_MODEL,
+                    "iterations": iteration + 1,
+                    "tools_called": audit_tools_called,
+                    "rate_limited": True,
+                }
+            )
             return
 
         # ── Step 5: Execute tool calls via MCP ──────────────────────────────
@@ -337,13 +342,15 @@ async def run_agent(
         current_message = tool_responses
 
     # Exhausted max iterations
-    _audit_log({
-        "prompt": user_prompt[:500],
-        "model": GEMINI_MODEL,
-        "iterations": max_iterations,
-        "tools_called": audit_tools_called,
-        "max_iterations_reached": True,
-    })
+    _audit_log(
+        {
+            "prompt": user_prompt[:500],
+            "model": GEMINI_MODEL,
+            "iterations": max_iterations,
+            "tools_called": audit_tools_called,
+            "max_iterations_reached": True,
+        }
+    )
     yield {
         "type": "error",
         "msg": "⚠️ Agent loop reached maximum iterations without a final answer.",
