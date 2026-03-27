@@ -392,12 +392,17 @@ jobs:
           workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
+      - name: Setup Docker Auth
+        run: gcloud auth configure-docker gcr.io --empty-json
+
+      - name: Setup Docker Auth
+        run: gcloud auth configure-docker gcr.io --empty-json
+
       - name: Build Dashboard Image (Staging)
         run: |
           IMAGE="gcr.io/${{ env.GCP_PROJECT_ID }}/vpp-dashboard:${{ github.sha }}-stage"
-          gcloud builds submit . \
-            --config=cloudbuild.dashboard.yaml \
-            --substitutions=_IMAGE=${IMAGE}
+          docker build -f Dockerfile.dashboard -t ${IMAGE} .
+          docker push ${IMAGE}
           echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
 
       - name: Deploy Dashboard to Cloud Run (Staging)
@@ -452,12 +457,14 @@ jobs:
           workload_identity_provider: "${{ env.WIF_PROVIDER_NAME }}"
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
+      - name: Setup Docker Auth
+        run: gcloud auth configure-docker gcr.io --empty-json
+
       - name: Build Dashboard Image (Production)
         run: |
           IMAGE="gcr.io/${{ env.GCP_PROJECT_ID }}/vpp-dashboard:${{ github.sha }}"
-          gcloud builds submit . \
-            --config=cloudbuild.dashboard.yaml \
-            --substitutions=_IMAGE=${IMAGE}
+          docker build -f Dockerfile.dashboard -t ${IMAGE} .
+          docker push ${IMAGE}
           echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
 
       - name: Deploy Dashboard to Cloud Run (Production)
