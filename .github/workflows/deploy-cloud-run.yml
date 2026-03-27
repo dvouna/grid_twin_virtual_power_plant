@@ -75,10 +75,10 @@ jobs:
           echo "Checking for model files..."
           ls -R models/
           if [ ! -f "models/xgb_vpp_grid.json" ]; then
-            echo "❌ CRITICAL: Model file missing in build context!"
+            echo " CRITICAL: Model file missing in build context!"
             exit 1
           fi
-          echo "✓ Model file found."
+          echo " Model file found."
 
       - name: Deploy to Cloud Run (Staging)
         id: deploy
@@ -138,13 +138,13 @@ jobs:
               --project=${{ env.GCP_PROJECT_ID }} \
               --format="value(status.conditions[0].status)")
             if [ "$READY" = "True" ]; then
-              echo "✅ BAM Service is READY after $i attempt(s)"
+              echo "BAM Service is READY after $i attempt(s)"
               exit 0
             fi
             echo "Attempt $i: status=$READY — retrying in 10s..."
             sleep 10
           done
-          echo "❌ BAM Service failed to become READY after 10 attempts"
+          echo "BAM Service failed to become READY after 10 attempts"
           exit 1
 
       - name: Deploy Consumer ML Job (Staging)
@@ -233,10 +233,10 @@ jobs:
           echo "Checking for model files..."
           ls -R models/
           if [ ! -f "models/xgb_vpp_grid.json" ]; then
-            echo "❌ CRITICAL: Model file missing in build context!"
+            echo "CRITICAL: Model file missing in build context!"
             exit 1
           fi
-          echo "✓ Model file found."
+          echo "Model file found."
 
       - name: Deploy to Cloud Run (Production)
         id: deploy
@@ -296,13 +296,13 @@ jobs:
               --project=${{ env.GCP_PROJECT_ID }} \
               --format="value(status.conditions[0].status)")
             if [ "$READY" = "True" ]; then
-              echo "✅ BAM Service is READY after $i attempt(s)"
+              echo "BAM Service is READY after $i attempt(s)"
               exit 0
             fi
             echo "Attempt $i: status=$READY — retrying in 10s..."
             sleep 10
           done
-          echo "❌ BAM Service failed to become READY after 10 attempts"
+          echo "BAM Service failed to become READY after 10 attempts"
           exit 1
 
       - name: Deploy Consumer ML Job (Production)
@@ -394,7 +394,7 @@ jobs:
 
       - name: Build Dashboard Image (Staging)
         run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}-stage"
+          IMAGE="gcr.io/${{ env.GCP_PROJECT_ID }}/vpp-dashboard:${{ github.sha }}-stage"
           gcloud builds submit . \
             --config=cloudbuild.dashboard.yaml \
             --substitutions=_IMAGE=${IMAGE}
@@ -454,7 +454,7 @@ jobs:
 
       - name: Build Dashboard Image (Production)
         run: |
-          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}"
+          IMAGE="gcr.io/${{ env.GCP_PROJECT_ID }}/vpp-dashboard:${{ github.sha }}"
           gcloud builds submit . \
             --config=cloudbuild.dashboard.yaml \
             --substitutions=_IMAGE=${IMAGE}
