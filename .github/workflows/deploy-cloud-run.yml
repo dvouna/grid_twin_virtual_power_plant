@@ -393,10 +393,7 @@ jobs:
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Setup Docker Auth
-        run: gcloud auth configure-docker gcr.io --empty-json
-
-      - name: Setup Docker Auth
-        run: gcloud auth configure-docker gcr.io --empty-json
+        run: gcloud auth configure-docker gcr.io --quiet
 
       - name: Build Dashboard Image (Staging)
         run: |
@@ -458,7 +455,7 @@ jobs:
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Setup Docker Auth
-        run: gcloud auth configure-docker gcr.io --empty-json
+        run: gcloud auth configure-docker gcr.io --quiet
 
       - name: Build Dashboard Image (Production)
         run: |
