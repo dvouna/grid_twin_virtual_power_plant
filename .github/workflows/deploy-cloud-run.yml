@@ -393,11 +393,11 @@ jobs:
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Setup Docker Auth
-        run: gcloud auth configure-docker gcr.io --quiet
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build Dashboard Image (Staging)
         run: |
-          IMAGE="gcr.io/${{ env.GCP_PROJECT_ID }}/vpp-dashboard:${{ github.sha }}-stage"
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}-stage"
           docker build -f Dockerfile.dashboard -t ${IMAGE} .
           docker push ${IMAGE}
           echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
@@ -455,11 +455,11 @@ jobs:
           service_account: "${{ env.GCP_SERVICE_ACCOUNT }}"
 
       - name: Setup Docker Auth
-        run: gcloud auth configure-docker gcr.io --quiet
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build Dashboard Image (Production)
         run: |
-          IMAGE="gcr.io/${{ env.GCP_PROJECT_ID }}/vpp-dashboard:${{ github.sha }}"
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}"
           docker build -f Dockerfile.dashboard -t ${IMAGE} .
           docker push ${IMAGE}
           echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
