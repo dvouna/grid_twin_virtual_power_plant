@@ -11,13 +11,15 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from pydantic import BaseModel
 
+from vpp.agents.battery_manager import INFLUX_URL
+
 logger = logging.getLogger(__name__)
 
 # InfluxDB connection details (shared with the rest of the VPP stack)
-INFLUX_URL = os.getenv("INFLUX_CLOUD_URL", "https://us-east-1-1.aws.cloud2.influxdata.com")
-INFLUX_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN", "your-cloud-token-here")
-INFLUX_ORG = os.getenv("INFLUX_CLOUD_ORG", "Energy Simulation")
-INFLUX_BUCKET = os.getenv("INFLUX_CLOUD_BUCKET", "energy")
+INFLUX_CLOUD_URL = os.getenv("INFLUX_CLOUD_URL")
+INFLUX_CLOUD_TOKEN = os.getenv("INFLUX_CLOUD_TOKEN")
+INFLUX_CLOUD_ORG = os.getenv("INFLUX_CLOUD_ORG")
+INFLUX_CLOUD_BUCKET = os.getenv("INFLUX_CLOUD_BUCKET")
 
 
 class BatteryManagementAgent:
@@ -48,18 +50,16 @@ class BatteryManagementAgent:
         self.current_soc_kwh = capacity_kwh * 0.50  # Default: start at 50% SoC
         self.max_dispatch_kw = capacity_kwh * max_c_rate
 
-    # ------------------------------------------------------------------
     # A1: State Persistence helpers
-    # ------------------------------------------------------------------
     def _restore_state(self) -> None:
         """
         On startup, query InfluxDB for the latest persisted SoC and restore it.
         Falls back to the 50% default if no prior record exists.
         """
         try:
-            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            client = InfluxDBClient(url=INFLUX_CLOUD_URL, token=INFLUX_CLOUD_TOKEN, org=INFLUX_CLOUD_ORG)
             query = (
-                f'from(bucket: "{INFLUX_BUCKET}")'
+                f'from(bucket: "{INFLUX_CLOUD_BUCKET}")'
                 f" |> range(start: -30d)"
                 f' |> filter(fn: (r) => r["_measurement"] == "bam_state")'
                 f' |> filter(fn: (r) => r["_field"] == "soc_kwh")'
@@ -87,17 +87,17 @@ class BatteryManagementAgent:
         Called after every approved dispatch.
         """
         try:
-            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            client = InfluxDBClient(url=INFLUX_CLOUD_URL, token=INFLUX_CLOUD_TOKEN, org=INFLUX_CLOUD_ORG)
             point = Point("bam_state").field("soc_kwh", self.current_soc_kwh).field("soc_pct", self.soc_percentage)
-            client.write_api(write_options=SYNCHRONOUS).write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+            client.write_api(write_options=SYNCHRONOUS).write(
+                bucket=INFLUX_CLOUD_BUCKET, org=INFLUX_CLOUD_ORG, record=point
+            )
         except Exception as e:
             logger.error(f"BAM: State persist failed ({e}). SoC in memory is still correct.")
         finally:
             client.close()
 
-    # ------------------------------------------------------------------
     # A2: Dispatch telemetry
-    # ------------------------------------------------------------------
     def _write_dispatch_log(
         self,
         agent_name: str,
@@ -110,7 +110,7 @@ class BatteryManagementAgent:
         This gives a single, canonical audit trail independent of what the actors log.
         """
         try:
-            client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+            client = InfluxDBClient(url=INFLUX_CLOUD_URL, token=INFLUX_CLOUD_TOKEN, org=INFLUX_CLOUD_ORG)
             point = (
                 Point("bam_dispatch_log")
                 .tag("agent_name", agent_name)
@@ -120,7 +120,9 @@ class BatteryManagementAgent:
                 .field("soc_kwh", self.current_soc_kwh)
                 .field("soc_pct", self.soc_percentage)
             )
-            client.write_api(write_options=SYNCHRONOUS).write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+            client.write_api(write_options=SYNCHRONOUS).write(
+                bucket=INFLUX_CLOUD_BUCKET, org=INFLUX_CLOUD_ORG, record=point
+            )
         except Exception as e:
             logger.error(f"BAM: Dispatch log write failed ({e}).")
         finally:
@@ -256,8 +258,6 @@ class BatteryManagementAgent:
 
 
 # --- FastAPI Microservice Implementation ---
-
-
 # A1: Lifespan handler — restores persisted SoC from InfluxDB before serving traffic
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -309,10 +309,7 @@ def _verify_api_key(api_key: str = Security(_api_key_header)):
     # Read dynamically so env-var changes (e.g. in tests) are always respected.
     expected_key = os.getenv("BAM_API_KEY")
     if not expected_key:
-        logger.warning(
-            "BAM_API_KEY is not set — API authentication is DISABLED. "
-            "Set this env var in production."
-        )
+        logger.warning("BAM_API_KEY is not set — API authentication is DISABLED. Set this env var in production.")
         return
     if api_key != expected_key:
         raise HTTPException(
