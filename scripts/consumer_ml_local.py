@@ -12,10 +12,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Add the 'src' directory to the Python path programmatically
-# This allows the script to find the 'vpp' package inside the 'src' folder
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-# Import the new Predictor class
+# Import the Predictor class
 from vpp.core.VPPPredictor import VPPPredictor
 
 # --- 1. CONFIGURATION ---
@@ -42,8 +41,8 @@ if not INFLUX_TOKEN:
 CRITICAL_DROP_THRESHOLD = -50  
 WARNING_DROP_THRESHOLD = -20
 
-# --- 2. INITIALIZE PREDICTOR ---
-# This class now owns the Model, Feature Names, and Feature Store logic
+# --- 2. INITIALIZE PREDICTOR CLASS---
+# Class now owns the Model, Feature Names, and Feature Store logic
 predictor = VPPPredictor(MODEL_PATH)
 
 # --- 3. PRESCRIPTIVE LOGIC ---
@@ -69,7 +68,7 @@ def run_ml_consumer():
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
-    print(f"🚀 ML Consumer started with {MODEL_PATH}")
+    print(f"ML Consumer started with {MODEL_PATH}")
     print(f"Listening to {TOPIC_NAME}...")
 
     try:
@@ -133,4 +132,4 @@ def run_ml_consumer():
         influx_client.close()
 
 if __name__ == "__main__":
-    run_ml_consumer()
+    run_ml_consumer() 
