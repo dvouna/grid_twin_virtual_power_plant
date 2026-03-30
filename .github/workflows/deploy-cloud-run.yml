@@ -53,7 +53,8 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     needs: test
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    # Only deploy to staging from develop — production promotion happens via PR: develop → main
+    if: github.ref == 'refs/heads/develop'
     environment: staging
     runs-on: ubuntu-latest
     permissions:
@@ -375,7 +376,8 @@ jobs:
   deploy-dashboard-staging:
     name: Deploy Dashboard to Staging
     needs: test
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    # Only deploy to staging from develop — mirrors the backend staging gate
+    if: github.ref == 'refs/heads/develop'
     environment: staging
     runs-on: ubuntu-latest
     permissions:
