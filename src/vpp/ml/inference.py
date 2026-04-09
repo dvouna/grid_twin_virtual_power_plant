@@ -40,7 +40,7 @@ def create_cyclical_features(df):
     df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
     return df
 
-# MAIN FEATURE PIPELINE 
+# MAIN FEATURE PIPELINE
 
 def prepare_features(df, config):
     df = df.copy()

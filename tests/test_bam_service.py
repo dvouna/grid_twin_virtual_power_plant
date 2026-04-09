@@ -6,8 +6,9 @@ InfluxDB calls (_persist_state, _restore_state, _write_dispatch_log)
 are mocked so tests are fully self-contained and fast.
 """
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 # --- Test client setup ---

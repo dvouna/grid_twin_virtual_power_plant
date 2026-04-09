@@ -1,8 +1,9 @@
-import streamlit as st
+import os
+
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 from influxdb_client import InfluxDBClient
-import os
 
 st.set_page_config(page_title="Financials", page_icon="💰", layout="wide")
 

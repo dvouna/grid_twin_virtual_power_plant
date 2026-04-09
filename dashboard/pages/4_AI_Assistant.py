@@ -1,5 +1,6 @@
-import streamlit as st
 import time
+
+import streamlit as st
 
 st.set_page_config(page_title="MCP AI Assistant", page_icon="🧠", layout="wide")
 
@@ -38,7 +39,7 @@ if prompt := st.chat_input("Ask about grid stability, predict load, or check age
         response = "The Arbitrage Trader is currently active and recently purchased 10 MW to charge the battery system."
     else:
         response = f"I am connected to the MCP Server, but I don't have a specific tool to answer that yet. I heard you ask: '{prompt}'"
-    
+
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
@@ -50,6 +51,6 @@ if prompt := st.chat_input("Ask about grid stability, predict load, or check age
             # Add a blinking cursor to simulate typing
             message_placeholder.markdown(full_response + "▌")
         message_placeholder.markdown(full_response)
-    
+
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": full_response})

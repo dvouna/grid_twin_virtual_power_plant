@@ -67,7 +67,7 @@ class VPPPredictor:
         prediction_change = self.predict()
         if prediction_change is None:
             return []
-            
+
         step_change = prediction_change / steps
         curve = [current_net_load_kw + (step_change * i) for i in range(1, steps + 1)]
         return curve
