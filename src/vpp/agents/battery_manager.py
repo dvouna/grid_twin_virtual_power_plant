@@ -120,9 +120,7 @@ class BatteryManagementAgent:
                 .field("total_energy_cycled_kwh", self.total_energy_cycled_kwh)
                 .field("efc", self.efc)
             )
-            self.write_api.write(
-                bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point
-            )
+            self.write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
         except Exception as e:
             logger.error(f"BAM: State persist failed ({e}). SoC in memory is still correct.")
 
@@ -150,9 +148,7 @@ class BatteryManagementAgent:
                 .field("soc_kwh", self.current_soc_kwh)
                 .field("soc_pct", self.soc_percentage)
             )
-            self.write_api.write(
-                bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point
-            )
+            self.write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
         except Exception as e:
             logger.error(f"BAM: Dispatch log write failed ({e}).")
 
@@ -290,7 +286,8 @@ class BatteryManagementAgent:
         # Assuming peak load above 400MW (400,000 kW) is severe
         if peak_predicted_load > 400000.0 and self.soc_percentage < 0.40:
             logger.info("BAM Agent Pre-Conditioning: Severe load predicted. Pre-charging at Maximum C-Rate.")
-            # Request maximum charge from the internal gatekeeper (pass expected_revenue=0 to bypass economic checks since safety takes precedence)
+            # Request maximum charge from the internal gatekeeper (pass expected_revenue=0 to bypass economic checks
+            # since safety takes precedence)
             return self.evaluate_request(agent_name="BAM_PreConditioner", requested_kw=self.max_dispatch_kw)
 
         return 0.0
@@ -346,6 +343,8 @@ _api_key_header = APIKeyHeader(name="X-BAM-API-Key", auto_error=False)
 
 
 def _verify_api_key(api_key: str = Security(_api_key_header)):
+    _BAM_API_KEY = os.getenv("BAM_API_KEY")
+    _api_key_header = APIKeyHeader(name="X-BAM-API-Key", auto_error=False)
     if not _BAM_API_KEY:
         logger.warning("BAM_API_KEY is not set — API authentication is DISABLED. Set this env var in production.")
         return
