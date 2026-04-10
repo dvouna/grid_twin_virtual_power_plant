@@ -46,10 +46,8 @@ README.md
 data/
 notebooks/
 
-# Models - Explicitly include ONLY needed files
-models/*
-!models/xgb_vpp_grid.json
-!models/model_features.txt
+# Models - Upload the entire directory (~1MB) to avoid tarball exclusion bugs
+# (Cloud Build will successfully receive the models/ folder for the Dockerfile COPY step)
 
 # Diagnostic Outputs & Mocks
 diag_output*.txt
