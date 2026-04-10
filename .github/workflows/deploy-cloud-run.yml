@@ -23,7 +23,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.12"
+          python-version: "3.13"
           cache: "pip"
 
       - name: Install dependencies
@@ -53,6 +53,8 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     needs: test
+    outputs:
+      mcp_url: ${{ steps.deploy.outputs.url }}
     # Only deploy to staging from develop — production promotion happens via PR: develop → main
     if: github.ref == 'refs/heads/develop'
     environment: staging
@@ -79,7 +81,11 @@ jobs:
             echo " CRITICAL: Model file missing in build context!"
             exit 1
           fi
-          echo " Model file found."
+          if [ ! -f "models/model_features.txt" ]; then
+            echo " CRITICAL: Feature list file missing in build context!"
+            exit 1
+          fi
+          echo " Model and features files found."
 
       - name: Deploy to Cloud Run (Staging)
         id: deploy
@@ -212,6 +218,8 @@ jobs:
   deploy-production:
     name: Deploy to Production
     needs: [test, deploy-staging]
+    outputs:
+      mcp_url: ${{ steps.deploy.outputs.url }}
     if: github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
@@ -237,7 +245,11 @@ jobs:
             echo "CRITICAL: Model file missing in build context!"
             exit 1
           fi
-          echo "Model file found."
+          if [ ! -f "models/model_features.txt" ]; then
+            echo "CRITICAL: Feature list file missing in build context!"
+            exit 1
+          fi
+          echo "Model and features files found."
 
       - name: Deploy to Cloud Run (Production)
         id: deploy
@@ -375,7 +387,7 @@ jobs:
   # ── Dashboard: Streamlit + Gemini + MCP Client ──────────────────────────────
   deploy-dashboard-staging:
     name: Deploy Dashboard to Staging
-    needs: test
+    needs: [test, deploy-staging]
     # Only deploy to staging from develop — mirrors the backend staging gate
     if: github.ref == 'refs/heads/develop'
     environment: staging
@@ -422,7 +434,7 @@ jobs:
           secrets: |-
             GEMINI_API_KEY=GEMINI_API_KEY:latest
           env_vars: |-
-            MCP_SERVER_URL=https://vpp-mcp-server-stage-${{ env.REGION }}.run.app
+            MCP_SERVER_URL=${{ needs.deploy-staging.outputs.mcp_url }}
             GEMINI_MODEL=gemini-1.5-flash
             MCP_TOOL_CALL_LIMIT=10
 
@@ -485,7 +497,7 @@ jobs:
           secrets: |-
             GEMINI_API_KEY=GEMINI_API_KEY:latest
           env_vars: |-
-            MCP_SERVER_URL=https://vpp-mcp-server-${{ env.REGION }}.run.app
+            MCP_SERVER_URL=${{ needs.deploy-production.outputs.mcp_url }}
             GEMINI_MODEL=gemini-1.5-flash
             MCP_TOOL_CALL_LIMIT=10
 
