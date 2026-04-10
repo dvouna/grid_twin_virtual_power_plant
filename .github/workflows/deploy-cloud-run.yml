@@ -412,11 +412,12 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build Dashboard Image (Staging)
+        id: build-image-stage
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}-stage"
           docker build -f Dockerfile.dashboard -t ${IMAGE} .
           docker push ${IMAGE}
-          echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
 
       - name: Deploy Dashboard to Cloud Run (Staging)
         id: deploy-dash-stage
@@ -424,7 +425,7 @@ jobs:
         with:
           service: vpp-dashboard-stage
           region: ${{ env.REGION }}
-          image: ${{ env.DASHBOARD_IMAGE }}
+          image: ${{ steps.build-image-stage.outputs.image }}
           timeout: "300s"
           flags: >-
             --memory=512Mi
@@ -474,11 +475,12 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build Dashboard Image (Production)
+        id: build-image-prod
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}"
           docker build -f Dockerfile.dashboard -t ${IMAGE} .
           docker push ${IMAGE}
-          echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
 
       - name: Deploy Dashboard to Cloud Run (Production)
         id: deploy-dash-prod
@@ -486,7 +488,7 @@ jobs:
         with:
           service: vpp-dashboard
           region: ${{ env.REGION }}
-          image: ${{ env.DASHBOARD_IMAGE }}
+          image: ${{ steps.build-image-prod.outputs.image }}
           timeout: "300s"
           flags: >-
             --memory=512Mi
