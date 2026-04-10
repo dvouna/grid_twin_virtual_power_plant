@@ -217,7 +217,7 @@ jobs:
 
   deploy-production:
     name: Deploy to Production
-    needs: [test, deploy-staging]
+    needs: test
     outputs:
       mcp_url: ${{ steps.deploy.outputs.url }}
     if: github.ref == 'refs/heads/main'
@@ -450,7 +450,7 @@ jobs:
 
   deploy-dashboard-production:
     name: Deploy Dashboard to Production
-    needs: [test, deploy-production, deploy-dashboard-staging]
+    needs: [test, deploy-production]
     if: github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
