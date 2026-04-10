@@ -1,8 +1,8 @@
 confluent-kafka
-fastmcp<3.0
+fastmcp
 influxdb-client
 mcp
-numpy<2.0
+numpy>=2.0
 pandas
 python-dotenv
 scikit-learn

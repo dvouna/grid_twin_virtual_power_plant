@@ -1,8 +1,8 @@
 confluent-kafka
-fastmcp<3.0
+fastmcp
 influxdb-client
 mcp
-numpy<2.0
+numpy>=2.0
 pandas
 python-dotenv
 scikit-learn
@@ -10,7 +10,7 @@ xgboost>=2.0.0
 pytest
 pytest-mock
 pytest-asyncio
-setuptools<81
+setuptools
 starlette
 fastapi
 uvicorn

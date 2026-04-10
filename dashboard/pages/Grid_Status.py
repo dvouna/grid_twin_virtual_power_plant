@@ -91,10 +91,9 @@ except Exception as e:
         st.error("⚠️ DATA STREAM OFFLINE: Network Connection Failed", icon="🛑")
         st.info("Could not connect to InfluxDB. Check your network or the `INFLUX_URL`.", icon="🌐")
     else:
-        st.error(f"⚠️ DATA STREAM OFFLINE: An unexpected error occurred.", icon="🛑")
+        st.error("⚠️ DATA STREAM OFFLINE: An unexpected error occurred.", icon="🛑")
         with st.expander("View Error Details"):
             st.code(e)
-
     # Display an empty chart as a visual fallback instead of the page breaking
     st.markdown("### Grid Heartbeat (Last 60 Minutes)")
     fig = px.line(title="Grid Telemetry Currently Unavailable", template="plotly_dark")

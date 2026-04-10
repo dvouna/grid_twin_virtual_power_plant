@@ -23,7 +23,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.12"
+          python-version: "3.13"
           cache: "pip"
 
       - name: Install dependencies
@@ -43,17 +43,22 @@ jobs:
         run: pytest -m "not integration" -v --cov=src --cov-report=term-missing
 
       - name: Validate Docker Build
+        if: github.ref == 'refs/heads/main'
         run: |
           docker build -t vpp-mcp-server:test .
 
       - name: Validate Dashboard Docker Build
+        if: github.ref == 'refs/heads/main'
         run: |
           docker build -f Dockerfile.dashboard -t vpp-dashboard:test .
 
   deploy-staging:
     name: Deploy to Staging
     needs: test
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    outputs:
+      mcp_url: ${{ steps.deploy.outputs.url }}
+    # Only deploy to staging from develop — production promotion happens via PR: develop → main
+    if: github.ref == 'refs/heads/develop'
     environment: staging
     runs-on: ubuntu-latest
     permissions:
@@ -78,7 +83,11 @@ jobs:
             echo " CRITICAL: Model file missing in build context!"
             exit 1
           fi
-          echo " Model file found."
+          if [ ! -f "models/model_features.txt" ]; then
+            echo " CRITICAL: Feature list file missing in build context!"
+            exit 1
+          fi
+          echo " Model and features files found."
 
       - name: Deploy to Cloud Run (Staging)
         id: deploy
@@ -210,7 +219,9 @@ jobs:
 
   deploy-production:
     name: Deploy to Production
-    needs: [test, deploy-staging]
+    needs: test
+    outputs:
+      mcp_url: ${{ steps.deploy.outputs.url }}
     if: github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
@@ -236,7 +247,11 @@ jobs:
             echo "CRITICAL: Model file missing in build context!"
             exit 1
           fi
-          echo "Model file found."
+          if [ ! -f "models/model_features.txt" ]; then
+            echo "CRITICAL: Feature list file missing in build context!"
+            exit 1
+          fi
+          echo "Model and features files found."
 
       - name: Deploy to Cloud Run (Production)
         id: deploy
@@ -354,7 +369,7 @@ jobs:
       - name: Production Deployment Complete
         run: |
           echo "Production deployment successful"
-          echo "Service URL: https://vpp-mcp-server-${{ env.REGION }}.run.app"
+          echo "Service URL: ${{ steps.deploy.outputs.url }}"
 
       - name: Create Deployment Summary
         if: success()
@@ -374,8 +389,9 @@ jobs:
   # ── Dashboard: Streamlit + Gemini + MCP Client ──────────────────────────────
   deploy-dashboard-staging:
     name: Deploy Dashboard to Staging
-    needs: test
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    needs: [test, deploy-staging]
+    # Only deploy to staging from develop — mirrors the backend staging gate
+    if: github.ref == 'refs/heads/develop'
     environment: staging
     runs-on: ubuntu-latest
     permissions:
@@ -396,11 +412,12 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build Dashboard Image (Staging)
+        id: build-image-stage
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}-stage"
           docker build -f Dockerfile.dashboard -t ${IMAGE} .
           docker push ${IMAGE}
-          echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
 
       - name: Deploy Dashboard to Cloud Run (Staging)
         id: deploy-dash-stage
@@ -408,7 +425,7 @@ jobs:
         with:
           service: vpp-dashboard-stage
           region: ${{ env.REGION }}
-          image: ${{ env.DASHBOARD_IMAGE }}
+          image: ${{ steps.build-image-stage.outputs.image }}
           timeout: "300s"
           flags: >-
             --memory=512Mi
@@ -420,7 +437,7 @@ jobs:
           secrets: |-
             GEMINI_API_KEY=GEMINI_API_KEY:latest
           env_vars: |-
-            MCP_SERVER_URL=https://vpp-mcp-server-stage-${{ env.REGION }}.run.app
+            MCP_SERVER_URL=${{ needs.deploy-staging.outputs.mcp_url }}
             GEMINI_MODEL=gemini-1.5-flash
             MCP_TOOL_CALL_LIMIT=10
 
@@ -436,7 +453,7 @@ jobs:
 
   deploy-dashboard-production:
     name: Deploy Dashboard to Production
-    needs: [test, deploy-production, deploy-dashboard-staging]
+    needs: [test, deploy-production]
     if: github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
@@ -458,11 +475,12 @@ jobs:
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build Dashboard Image (Production)
+        id: build-image-prod
         run: |
           IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/vpp/dashboard:${{ github.sha }}"
           docker build -f Dockerfile.dashboard -t ${IMAGE} .
           docker push ${IMAGE}
-          echo "DASHBOARD_IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
 
       - name: Deploy Dashboard to Cloud Run (Production)
         id: deploy-dash-prod
@@ -470,7 +488,7 @@ jobs:
         with:
           service: vpp-dashboard
           region: ${{ env.REGION }}
-          image: ${{ env.DASHBOARD_IMAGE }}
+          image: ${{ steps.build-image-prod.outputs.image }}
           timeout: "300s"
           flags: >-
             --memory=512Mi
@@ -483,7 +501,7 @@ jobs:
           secrets: |-
             GEMINI_API_KEY=GEMINI_API_KEY:latest
           env_vars: |-
-            MCP_SERVER_URL=https://vpp-mcp-server-${{ env.REGION }}.run.app
+            MCP_SERVER_URL=${{ needs.deploy-production.outputs.mcp_url }}
             GEMINI_MODEL=gemini-1.5-flash
             MCP_TOOL_CALL_LIMIT=10
 

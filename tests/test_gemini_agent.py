@@ -27,6 +27,7 @@ if _root not in sys.path:
 # Helpers to fabricate Gemini response objects
 # ---------------------------------------------------------------------------
 
+
 def _make_text_part(text: str):
     """Fake a Gemini response Part that contains only text."""
     part = MagicMock()
@@ -70,6 +71,7 @@ def _make_mcp_tool(name="predict_grid_ramp"):
 # Shared patches context
 # ---------------------------------------------------------------------------
 
+
 def _base_patches(gemini_response, mcp_result="Tool result text"):
     """Return a dict of patch targets and their mocks for a standard run."""
     chat_mock = MagicMock()
@@ -100,6 +102,7 @@ async def _collect(gen):
 # Test: missing API key
 # ---------------------------------------------------------------------------
 
+
 class TestMissingApiKey:
     @pytest.mark.asyncio
     async def test_yields_error_when_no_api_key(self, monkeypatch):
@@ -107,6 +110,7 @@ class TestMissingApiKey:
         # Force module-level constant to re-read (it's cached at import)
         with patch("dashboard.gemini_agent.GEMINI_API_KEY", ""):
             from dashboard.gemini_agent import run_agent
+
             events = await _collect(run_agent("Hello", []))
 
         assert len(events) == 1
@@ -118,6 +122,7 @@ class TestMissingApiKey:
 # Test: MCP server unreachable
 # ---------------------------------------------------------------------------
 
+
 class TestMCPServerUnreachable:
     @pytest.mark.asyncio
     async def test_yields_error_on_fetch_tools_failure(self):
@@ -127,6 +132,7 @@ class TestMCPServerUnreachable:
             patch("dashboard.gemini_agent.fetch_tools", AsyncMock(side_effect=ConnectionError("refused"))),
         ):
             from dashboard.gemini_agent import run_agent
+
             events = await _collect(run_agent("Hello", []))
 
         error_events = [e for e in events if e["type"] == "error"]
@@ -138,6 +144,7 @@ class TestMCPServerUnreachable:
 # Test: simple text-only response (no tool calls)
 # ---------------------------------------------------------------------------
 
+
 class TestTextOnlyResponse:
     @pytest.mark.asyncio
     async def test_yields_status_then_text_chunks(self):
@@ -147,11 +154,14 @@ class TestTextOnlyResponse:
         with (
             patch("dashboard.gemini_agent.GEMINI_API_KEY", "fake-key"),
             patch("dashboard.gemini_agent.genai.configure", patches["dashboard.gemini_agent.genai.configure"]),
-            patch("dashboard.gemini_agent.genai.GenerativeModel", patches["dashboard.gemini_agent.genai.GenerativeModel"]),
+            patch(
+                "dashboard.gemini_agent.genai.GenerativeModel", patches["dashboard.gemini_agent.genai.GenerativeModel"]
+            ),
             patch("dashboard.gemini_agent.fetch_tools", patches["dashboard.gemini_agent.fetch_tools"]),
             patch("dashboard.gemini_agent.asyncio.to_thread", patches["dashboard.gemini_agent.asyncio.to_thread"]),
         ):
             from dashboard.gemini_agent import run_agent
+
             events = await _collect(run_agent("What is the grid status?", []))
 
         types = [e["type"] for e in events]
@@ -169,11 +179,14 @@ class TestTextOnlyResponse:
         with (
             patch("dashboard.gemini_agent.GEMINI_API_KEY", "fake-key"),
             patch("dashboard.gemini_agent.genai.configure", patches["dashboard.gemini_agent.genai.configure"]),
-            patch("dashboard.gemini_agent.genai.GenerativeModel", patches["dashboard.gemini_agent.genai.GenerativeModel"]),
+            patch(
+                "dashboard.gemini_agent.genai.GenerativeModel", patches["dashboard.gemini_agent.genai.GenerativeModel"]
+            ),
             patch("dashboard.gemini_agent.fetch_tools", patches["dashboard.gemini_agent.fetch_tools"]),
             patch("dashboard.gemini_agent.asyncio.to_thread", patches["dashboard.gemini_agent.asyncio.to_thread"]),
         ):
             from dashboard.gemini_agent import run_agent
+
             events = await _collect(run_agent("Battery SoC?", []))
 
         assert not any(e["type"] == "tool_end" for e in events)
@@ -183,15 +196,14 @@ class TestTextOnlyResponse:
 # Test: tool call followed by text response
 # ---------------------------------------------------------------------------
 
+
 class TestToolCallThenText:
     @pytest.mark.asyncio
     async def test_yields_tool_start_and_tool_end(self):
         tool_response = _make_gemini_response([_make_text_part("Ramp: 15 MW. Recommend discharge.")])
 
         # First call: Gemini returns a tool call
-        tool_call_response = _make_gemini_response(
-            [_make_tool_call_part("predict_grid_ramp", {})]
-        )
+        tool_call_response = _make_gemini_response([_make_tool_call_part("predict_grid_ramp", {})])
 
         call_count = 0
 
@@ -218,6 +230,7 @@ class TestToolCallThenText:
             mock_model_cls.return_value = model_mock
 
             from dashboard.gemini_agent import run_agent
+
             events = await _collect(run_agent("Predict next ramp", []))
 
         types = [e["type"] for e in events]
@@ -228,9 +241,7 @@ class TestToolCallThenText:
     @pytest.mark.asyncio
     async def test_tool_end_event_has_correct_name(self):
         tool_response = _make_gemini_response([_make_text_part("Done.")])
-        tool_call_response = _make_gemini_response(
-            [_make_tool_call_part("get_feature_store_status", {})]
-        )
+        tool_call_response = _make_gemini_response([_make_tool_call_part("get_feature_store_status", {})])
         call_count = 0
 
         async def mock_to_thread(fn, *args, **kwargs):
@@ -242,7 +253,10 @@ class TestToolCallThenText:
             patch("dashboard.gemini_agent.GEMINI_API_KEY", "fake-key"),
             patch("dashboard.gemini_agent.genai.configure"),
             patch("dashboard.gemini_agent.genai.GenerativeModel") as mock_model_cls,
-            patch("dashboard.gemini_agent.fetch_tools", AsyncMock(return_value=[_make_mcp_tool("get_feature_store_status")])),
+            patch(
+                "dashboard.gemini_agent.fetch_tools",
+                AsyncMock(return_value=[_make_mcp_tool("get_feature_store_status")]),
+            ),
             patch("dashboard.gemini_agent.call_tool", AsyncMock(return_value="Buffer: 49/50")),
             patch("dashboard.gemini_agent.asyncio.to_thread", mock_to_thread),
             patch("dashboard.gemini_agent.genai.protos.Part"),
@@ -253,6 +267,7 @@ class TestToolCallThenText:
             mock_model_cls.return_value = model_mock
 
             from dashboard.gemini_agent import run_agent
+
             events = await _collect(run_agent("Check feature store", []))
 
         tool_ends = [e for e in events if e["type"] == "tool_end"]
@@ -263,14 +278,13 @@ class TestToolCallThenText:
 # Test: rate limiting
 # ---------------------------------------------------------------------------
 
+
 class TestRateLimit:
     @pytest.mark.asyncio
     async def test_error_emitted_when_tool_call_limit_exceeded(self):
         """When more tool calls arrive than TOOL_CALL_LIMIT, an error is yielded."""
         # Return a tool call on every Gemini response to exhaust the limit
-        tool_call_response = _make_gemini_response(
-            [_make_tool_call_part("predict_grid_ramp", {})]
-        )
+        tool_call_response = _make_gemini_response([_make_tool_call_part("predict_grid_ramp", {})])
 
         with (
             patch("dashboard.gemini_agent.GEMINI_API_KEY", "fake-key"),
@@ -279,7 +293,7 @@ class TestRateLimit:
             patch("dashboard.gemini_agent.fetch_tools", AsyncMock(return_value=[_make_mcp_tool()])),
             patch("dashboard.gemini_agent.call_tool", AsyncMock(return_value="ok")),
             patch("dashboard.gemini_agent.asyncio.to_thread", AsyncMock(return_value=tool_call_response)),
-            patch("dashboard.gemini_agent.TOOL_CALL_LIMIT", 1),   # tiny limit
+            patch("dashboard.gemini_agent.TOOL_CALL_LIMIT", 1),  # tiny limit
             patch("dashboard.gemini_agent.genai.protos.Part"),
             patch("dashboard.gemini_agent.genai.protos.FunctionResponse"),
         ):
@@ -288,6 +302,7 @@ class TestRateLimit:
             mock_model_cls.return_value = model_mock
 
             from dashboard.gemini_agent import run_agent
+
             events = await _collect(run_agent("loop forever?", []))
 
         error_events = [e for e in events if e["type"] == "error"]

@@ -2,7 +2,7 @@
 # Streamlit + Gemini + MCP client for the VPP Copilot dashboard.
 # Deployed to Cloud Run as a separate service from the MCP server.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 

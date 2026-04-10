@@ -18,9 +18,12 @@ mcp = FastMCP("GridIntelligence")
 async def mcp_health_check(request: Request) -> PlainTextResponse:
     """Health check endpoint for Cloud Run startup probes."""
     # Ensure model is ready before serving traffic
-    if not model:
-        log("Health check FAILED: Model not loaded")
+    if not model or not expected_features:
+        log("Health check FAILED: Model or features not loaded")
         return PlainTextResponse("Model Not Loaded", status_code=503)
+    if not all([INFLUX_URL, INFLUX_TOKEN, ORG, BUCKET]):
+        log("Health check FAILED: Missing Influx configuration")
+        return PlainTextResponse("Missing Config", status_code=503)
     return PlainTextResponse("OK", status_code=200)
 
 
@@ -57,8 +60,8 @@ if not all([INFLUX_URL, INFLUX_TOKEN, ORG, BUCKET]):
 # dirname 3: /app/src
 # dirname 4: /app
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "xgb_vpp_grid.json")
-FEATURES_PATH = os.path.join(BASE_DIR, "models", "model_features.txt")
+MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(BASE_DIR, "models", "xgb_vpp_grid.json"))
+FEATURES_PATH = os.getenv("FEATURES_PATH", os.path.join(BASE_DIR, "models", "model_features.txt"))
 
 log(f"Calculated BASE_DIR: {BASE_DIR}")
 log(f"Calculated MODEL_PATH: {MODEL_PATH}")
@@ -106,14 +109,14 @@ feature_store = GridFeatureStore(window_size=49, expected_columns=expected_featu
 @mcp.resource("grid://current-status")
 def get_grid_status() -> str:
     """Fetches the most recent net load and renewable output from InfluxDB."""
-    client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=ORG)
-    query = f'from(bucket:"{BUCKET}") |> range(start: -1m) |> last()'
-    tables = client.query_api().query(query)
+    with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=ORG) as client:
+        query = f'from(bucket:"{BUCKET}") |> range(start: -1m) |> last()'
+        tables = client.query_api().query(query)
 
-    results = {}
-    for table in tables:
-        for record in table.records:
-            results[record.get_field()] = record.get_value()
+        results = {}
+        for table in tables:
+            for record in table.records:
+                results[record.get_field()] = record.get_value()
 
     return f"Current Net Load: {results.get('Net_Load_kW', 'N/A')} kW | Solar: {results.get('Renewable_Load_kW', 0)} kW"
 
@@ -208,6 +211,9 @@ def predict_grid_ramp() -> str:
 
     Returns:
     """
+    if model is None or expected_features is None:
+        return "Error: ML Model or Feature configuration not loaded on the server."
+
     if not feature_store.is_primed:
         buffer_size = len(feature_store.buffer)
         return f"Feature store not ready. Current buffer: {buffer_size}/49. Add {49 - buffer_size} more observations."
