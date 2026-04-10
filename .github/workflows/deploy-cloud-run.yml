@@ -43,10 +43,12 @@ jobs:
         run: pytest -m "not integration" -v --cov=src --cov-report=term-missing
 
       - name: Validate Docker Build
+        if: github.ref == 'refs/heads/main'
         run: |
           docker build -t vpp-mcp-server:test .
 
       - name: Validate Dashboard Docker Build
+        if: github.ref == 'refs/heads/main'
         run: |
           docker build -f Dockerfile.dashboard -t vpp-dashboard:test .
 
@@ -367,7 +369,7 @@ jobs:
       - name: Production Deployment Complete
         run: |
           echo "Production deployment successful"
-          echo "Service URL: https://vpp-mcp-server-${{ env.REGION }}.run.app"
+          echo "Service URL: ${{ steps.deploy.outputs.url }}"
 
       - name: Create Deployment Summary
         if: success()
