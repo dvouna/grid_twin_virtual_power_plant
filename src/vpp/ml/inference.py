@@ -51,6 +51,7 @@ def create_cyclical_features(df):
 
 # MAIN FEATURE PIPELINE
 
+
 def prepare_features(df, config):
     df = df.copy()
 

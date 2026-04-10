@@ -82,6 +82,7 @@ async def _open_session(url: str):
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+
 @_retry
 async def fetch_tools() -> list[Tool]:
     """
@@ -154,10 +155,7 @@ async def list_prompts() -> list[dict]:
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.list_prompts()
-            prompts = [
-                {"name": p.name, "description": p.description or p.name}
-                for p in result.prompts
-            ]
+            prompts = [{"name": p.name, "description": p.description or p.name} for p in result.prompts]
             logger.info(f"Fetched {len(prompts)} prompts")
             return prompts
 

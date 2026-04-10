@@ -26,6 +26,7 @@ if _root not in sys.path:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_tool(name: str):
     """Return a minimal MCP Tool-like mock."""
     tool = MagicMock()
@@ -74,6 +75,7 @@ def _make_session_mock(**kwargs):
 # fetch_tools
 # ---------------------------------------------------------------------------
 
+
 class TestFetchTools:
     @pytest.mark.asyncio
     async def test_returns_tool_list(self):
@@ -92,6 +94,7 @@ class TestFetchTools:
             mock_cls.return_value = session
 
             from dashboard.mcp_client import fetch_tools
+
             result = await fetch_tools()
 
         assert len(result) == 2
@@ -112,6 +115,7 @@ class TestFetchTools:
             mock_cls.return_value = session
 
             from dashboard.mcp_client import fetch_tools
+
             result = await fetch_tools()
 
         assert result == []
@@ -120,6 +124,7 @@ class TestFetchTools:
 # ---------------------------------------------------------------------------
 # call_tool
 # ---------------------------------------------------------------------------
+
 
 class TestCallTool:
     @pytest.mark.asyncio
@@ -139,6 +144,7 @@ class TestCallTool:
             mock_cls.return_value = session
 
             from dashboard.mcp_client import call_tool
+
             result = await call_tool("predict_grid_ramp", {})
 
         assert "Ramp predicted: 12 MW" in result
@@ -160,6 +166,7 @@ class TestCallTool:
             mock_cls.return_value = session
 
             from dashboard.mcp_client import call_tool
+
             with pytest.raises(ValueError, match="MCP tool"):
                 await call_tool("predict_grid_ramp", {})
 
@@ -179,6 +186,7 @@ class TestCallTool:
             mock_cls.return_value = session
 
             from dashboard.mcp_client import call_tool
+
             result = await call_tool("my_tool", {})
 
         assert "my_tool" in result
@@ -187,6 +195,7 @@ class TestCallTool:
 # ---------------------------------------------------------------------------
 # check_server_health
 # ---------------------------------------------------------------------------
+
 
 class TestCheckServerHealth:
     @pytest.mark.asyncio
@@ -201,6 +210,7 @@ class TestCheckServerHealth:
             mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
             from dashboard.mcp_client import check_server_health
+
             result = await check_server_health()
 
         assert result is True
@@ -217,6 +227,7 @@ class TestCheckServerHealth:
             mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
             from dashboard.mcp_client import check_server_health
+
             result = await check_server_health()
 
         assert result is False
@@ -230,6 +241,7 @@ class TestCheckServerHealth:
             mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
             from dashboard.mcp_client import check_server_health
+
             result = await check_server_health()
 
         assert result is False
@@ -238,6 +250,7 @@ class TestCheckServerHealth:
 # ---------------------------------------------------------------------------
 # list_prompts
 # ---------------------------------------------------------------------------
+
 
 class TestListPrompts:
     @pytest.mark.asyncio
@@ -258,6 +271,7 @@ class TestListPrompts:
             mock_cls.return_value = session
 
             from dashboard.mcp_client import list_prompts
+
             result = await list_prompts()
 
         assert len(result) == 1
